@@ -1,0 +1,4 @@
+year,raw_n,valid_n,party_n,nonparty_n,missing_n,party_code,father_field,mother_field,value_labels_present,questionnaire_file,questionnaire_pages,evidence_note
+2013,28141,24265,4973,19292,3876,1,a2033_1,a2033_2,0,2013年家庭金融调查问卷.pdf,PDF 19,"A2033 columns identify father then mother; codes are 1 CCP, 2 other party, 3 general public. The English questionnaire conflicts by listing CCP as code 2; Chinese questionnaire and observed DTA support code 1."
+2015,37289,9180,1794,7386,28109,2,a2033_2,a2033_1,0,2015年家庭金融调查问卷20161130.pdf,PDF 24-25,"A2033_1 is mother and A2033_2 is father; codes are 1 Youth League, 2 CCP, 3 other party, 4 general public."
+2017,40011,7037,1592,5445,32974,2,a2033_2,a2033_1,0,2017年中国家庭金融调查（CHFS）问卷.pdf,PDF 18,"A2033_1 is mother and A2033_2 is father; codes are 1 Youth League, 2 CCP, 3 other party, 4 general public."
