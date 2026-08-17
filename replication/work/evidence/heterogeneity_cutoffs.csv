@@ -1,0 +1,3 @@
+variable,cutoff,rule
+household_assets_10k_w,90.27453519230619,pooled_head_valid_mean
+household_income_pc_10k_w,2.465410228777118,pooled_head_valid_mean
