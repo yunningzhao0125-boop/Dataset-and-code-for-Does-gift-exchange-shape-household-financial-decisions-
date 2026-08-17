@@ -1,0 +1,369 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  build_original_supplement
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/30_build_variable_supplement.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:37
+
+. 
+. confirm file "`raw2013'"
+
+. confirm file "`raw2015'"
+
+. confirm file "`raw2017'"
+
+. confirm file "`authority'"
+
+. 
+. tempfile wave2013 wave2015 wave2017 raw_supplement
+
+. 
+. use "`raw2013'", clear
+(CAPI2013 ind. level data)
+
+. assert _N == 28141
+
+. rename hhid_2013 hhid
+
+. isid hhid
+
+. generate int year = 2013
+
+. 
+. generate byte term_deposit = .
+(28,141 missing values generated)
+
+. replace term_deposit = 1 if d2101 == 1
+(5,197 real changes made)
+
+. replace term_deposit = 0 if d2101 == 2
+(22,863 real changes made)
+
+. 
+. generate byte government_bond = .
+(28,141 missing values generated)
+
+. replace government_bond = 1 if d4101_1_mc == 1 | d4101_2_mc == 1
+(192 real changes made)
+
+. replace government_bond = 0 if missing(government_bond) & ///
+>     (d4100a == 2 | (d4100a == 1 & d4101_1_mc == 0 & d4101_2_mc == 0))
+(27,938 real changes made)
+
+. 
+. generate byte safe_assets = .
+(28,141 missing values generated)
+
+. replace safe_assets = 1 if term_deposit == 1 | government_bond == 1
+(5,292 real changes made)
+
+. replace safe_assets = 0 if term_deposit == 0 & government_bond == 0
+(22,764 real changes made)
+
+. 
+. generate byte financial_literacy = (a4004a == 3) if inrange(a4004a, 1, 4)
+(61 missing values generated)
+
+. generate byte network_size = a2043 - 1 if inrange(a2043, 1, 4)
+(15 missing values generated)
+
+. generate double institutional_trust = (h3042 - 1) / 4 if inrange(h3042, 1, 5)
+(12,024 missing values generated)
+
+. 
+. generate byte formal_bank_loan = .
+(28,141 missing values generated)
+
+. replace formal_bank_loan = 1 if b3001_1 == 1 | b3001_2 == 1 | ///
+>     c2024_1 == 1 | c2024_2 == 1 | c2024_3 == 1 | ///
+>     c7014_1 == 1 | c7014_2 == 1 | e1001 == 1
+(3,990 real changes made)
+
+. replace formal_bank_loan = 0 if missing(formal_bank_loan) & e1001 == 2
+(24,143 real changes made)
+
+. 
+. keep hhid year safe_assets financial_literacy network_size ///
+>     formal_bank_loan institutional_trust
+
+. isid hhid year
+
+. save "`wave2013'", replace
+(file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp not found)
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp saved as .dta format
+
+. 
+. use "`raw2015'", clear
+
+. assert _N == 37289
+
+. drop hhid
+
+. rename hhid_2015 hhid
+
+. isid hhid
+
+. generate int year = 2015
+
+. 
+. generate byte term_deposit = .
+(37,289 missing values generated)
+
+. replace term_deposit = 1 if d2101 == 1
+(7,111 real changes made)
+
+. replace term_deposit = 0 if d2101 == 2
+(29,333 real changes made)
+
+. 
+. generate byte government_bond = .
+(37,289 missing values generated)
+
+. replace government_bond = 1 if d4101a_1_mc == 1 | d4101a_2_mc == 1
+(197 real changes made)
+
+. replace government_bond = 0 if missing(government_bond) & ///
+>     (d7113_1_mc == 0 | ///
+>     (d7113_1_mc == 1 & d4101a_1_mc == 0 & d4101a_2_mc == 0))
+(36,983 real changes made)
+
+. 
+. generate byte safe_assets = .
+(37,289 missing values generated)
+
+. replace safe_assets = 1 if term_deposit == 1 | government_bond == 1
+(7,190 real changes made)
+
+. replace safe_assets = 0 if term_deposit == 0 & government_bond == 0
+(29,212 real changes made)
+
+. 
+. generate byte financial_literacy = (a4004a == 2) if inrange(a4004a, 1, 4)
+(768 missing values generated)
+
+. generate byte network_size = a2043 - 1 if inrange(a2043, 1, 4)
+(99 missing values generated)
+
+. generate double institutional_trust = (h3042 - 1) / 4 if inrange(h3042, 1, 5)
+(1,069 missing values generated)
+
+. 
+. generate byte formal_bank_loan = .
+(37,289 missing values generated)
+
+. replace formal_bank_loan = 1 if b3001_1 == 1 | b3001_2 == 1 | ///
+>     c2024 == 1 | c3019b == 1 | c7014 == 1 | e1001 == 1
+(4,670 real changes made)
+
+. replace formal_bank_loan = 0 if missing(formal_bank_loan) & e1001 == 2
+(32,560 real changes made)
+
+. 
+. keep hhid year safe_assets financial_literacy network_size ///
+>     formal_bank_loan institutional_trust
+
+. isid hhid year
+
+. save "`wave2015'", replace
+(file C:\Users\86158\AppData\Local\Temp\ST_79e0_000002.tmp not found)
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000002.tmp saved as .dta format
+
+. 
+. use "`raw2017'", clear
+
+. assert _N == 40011
+
+. drop hhid
+
+. rename hhid_2017 hhid
+
+. isid hhid
+
+. generate int year = 2017
+
+. 
+. generate byte term_deposit = .
+(40,011 missing values generated)
+
+. replace term_deposit = 1 if d2101 == 1
+(7,056 real changes made)
+
+. replace term_deposit = 0 if d2101 == 2
+(32,142 real changes made)
+
+. 
+. generate byte government_bond = .
+(40,011 missing values generated)
+
+. replace government_bond = 1 if d4101b_1_mc == 1
+(197 real changes made)
+
+. replace government_bond = 0 if missing(government_bond) & ///
+>     (d7113_1_mc == 0 | (d7113_1_mc == 1 & d4101b_1_mc == 0))
+(39,814 real changes made)
+
+. 
+. generate byte safe_assets = .
+(40,011 missing values generated)
+
+. replace safe_assets = 1 if term_deposit == 1 | government_bond == 1
+(7,140 real changes made)
+
+. replace safe_assets = 0 if term_deposit == 0 & government_bond == 0
+(32,065 real changes made)
+
+. 
+. generate byte financial_literacy = (h3105 == 2) if inrange(h3105, 1, 4)
+(38,738 missing values generated)
+
+. generate byte network_size = .
+(40,011 missing values generated)
+
+. generate double institutional_trust = .
+(40,011 missing values generated)
+
+. 
+. generate byte formal_bank_loan = .
+(40,011 missing values generated)
+
+. replace formal_bank_loan = 1 if b3001_2 == 1 | ///
+>     c2024_1 == 1 | c2024_2 == 1 | c2024_3 == 1 | ///
+>     c2024_4 == 1 | c2024_5 == 1 | c2024_6 == 1 | ///
+>     c3019b == 1 | e1001 == 1
+(4,458 real changes made)
+
+. replace formal_bank_loan = 0 if missing(formal_bank_loan) & e1001 == 2
+(35,508 real changes made)
+
+. 
+. keep hhid year safe_assets financial_literacy network_size ///
+>     formal_bank_loan institutional_trust
+
+. isid hhid year
+
+. save "`wave2017'", replace
+(file C:\Users\86158\AppData\Local\Temp\ST_79e0_000003.tmp not found)
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000003.tmp saved as .dta format
+
+. 
+. use "`wave2013'", clear
+(CAPI2013 ind. level data)
+
+. append using "`wave2015'" "`wave2017'"
+
+. assert _N == 105441
+
+. isid hhid year
+
+. save "`raw_supplement'", replace
+(file C:\Users\86158\AppData\Local\Temp\ST_79e0_000004.tmp not found)
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000004.tmp saved as .dta format
+
+. 
+. use "`authority'", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. keep hhid year trust_ordinal
+
+. assert _N == 105435
+
+. isid hhid year
+
+. 
+. merge 1:1 hhid year using "`raw_supplement'", generate(_merge_supplement)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             6
+        from master                         0  (_merge_supplement==1)
+        from using                          6  (_merge_supplement==2)
+
+    Matched                           105,435  (_merge_supplement==3)
+    -----------------------------------------
+
+. quietly count if _merge_supplement == 1
+
+. assert r(N) == 0
+
+. quietly count if _merge_supplement == 2
+
+. assert r(N) == 6
+
+. drop if _merge_supplement == 2
+(6 observations deleted)
+
+. drop _merge_supplement
+
+. assert _N == 105435
+
+. isid hhid year
+
+. 
+. generate double trust_01 = (trust_ordinal - 1) / 4 if inrange(trust_ordinal, 1, 5)
+(29,427 missing values generated)
+
+. drop trust_ordinal
+
+. 
+. label variable safe_assets "Safe Assets"
+
+. label variable trust_01 "Trust"
+
+. label variable financial_literacy "Financial literacy"
+
+. label variable network_size "Network size"
+
+. label variable formal_bank_loan "Formal Bank Loan"
+
+. label variable institutional_trust "Institutional trust"
+
+. 
+. note formal_bank_loan: Current/outstanding bank-loan proxy; not borrowing initiated in the previous year.
+
+. note institutional_trust: Government-pension-commitment trust proxy; available only in 2013 and 2015.
+
+. 
+. order hhid year safe_assets trust_01 financial_literacy network_size ///
+>     formal_bank_loan institutional_trust
+
+. 
+. foreach variable in safe_assets financial_literacy formal_bank_loan {
+  2.     assert inlist(`variable', 0, 1) | missing(`variable')
+  3. }
+
+. foreach variable in trust_01 institutional_trust {
+  2.     assert inrange(`variable', 0, 1) | missing(`variable')
+  3. }
+
+. assert missing(network_size) | ///
+>     (inrange(network_size, 0, 3) & network_size == floor(network_size))
+
+. quietly count if year == 2017 & !missing(network_size)
+
+. assert r(N) == 0
+
+. quietly count if year == 2017 & !missing(institutional_trust)
+
+. assert r(N) == 0
+
+. 
+. save "`target'", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/data/intermediate/irfa_household_year_variable_supplement.dta saved
+
+. 
+. local pass_marker = "BUILD_HOUSEHOLD_YEAR_VARIABLE_" + "SUPPLEMENT=PASS"
+
+. display as result "`pass_marker'"
+BUILD_HOUSEHOLD_YEAR_VARIABLE_SUPPLEMENT=PASS
+
+. local completion_marker = "__CODEX_STATA_" + "COMPLETE__"
+
+. display as result "`completion_marker'"
+__CODEX_STATA_COMPLETE__
+
+. 
+. log close build_original_supplement
+      name:  build_original_supplement
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/30_build_variable_supplement.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:39
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
