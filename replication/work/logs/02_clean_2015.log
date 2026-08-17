@@ -1,0 +1,591 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  w2015
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/logs/02_clean_2015.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:25
+
+. display "WAVE_BUILD_START=2015"
+WAVE_BUILD_START=2015
+
+. 
+. tempfile roster master_household
+
+. 
+. * hhid_2015 is the complete current-wave person-to-household key.
+. use "`ind'", clear
+
+. assert _N == 133183
+
+. isid hhid_2015 pline
+
+. gen byte __valid_member = !missing(hhid_2015) & !missing(pline)
+
+. bysort hhid_2015: egen int family_size = total(__valid_member)
+
+. bysort hhid_2015: egen byte head_count = total(hhead == 1)
+
+. bysort hhid_2015: egen int head_flag_missing_count = total(missing(hhead))
+
+. gen byte __is_head = hhead == 1
+
+. 
+. local head_source pline a2005 a2003 a2015 a2022 a2012 a2025b
+
+. local head_target head_pline head_birth_year head_sex_raw head_party_raw head_hukou_raw education_code health_code
+
+. local head_n : word count `head_source'
+
+. forvalues i = 1/`head_n' {
+  2.     local source : word `i' of `head_source'
+  3.     local target : word `i' of `head_target'
+  4.     gen double __head_value = `source' if __is_head == 1 & head_count == 1
+  5.     bysort hhid_2015: egen double `target' = max(__head_value)
+  6.     drop __head_value
+  7. }
+(95,894 missing values generated)
+(95,902 missing values generated)
+(34 missing values generated)
+(95,894 missing values generated)
+(98,096 missing values generated)
+(10,110 missing values generated)
+(96,079 missing values generated)
+(682 missing values generated)
+(95,946 missing values generated)
+(227 missing values generated)
+(95,983 missing values generated)
+(532 missing values generated)
+
+. gen byte head_anomaly = head_count != 1
+
+. bysort hhid_2015: keep if _n == 1
+(95,894 observations deleted)
+
+. keep hhid_2015 family_size head_count head_flag_missing_count head_* education_code health_code
+
+. isid hhid_2015
+
+. assert _N == 37289
+
+. assert head_anomaly == 0
+
+. save `roster'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp saved as .dta format
+
+. 
+. * The 2015 master uses generic hhid, not hhid_2015.
+. use "`master'", clear
+
+. assert _N == 37289
+
+. isid hhid
+
+. keep hhid province prov_CHN city_lab hhcid rural swgt
+
+. rename province province_id
+
+. rename prov_CHN province_name
+
+. rename city_lab city_code_source
+
+. tostring city_code_source, generate(city_id_source) format(%03.0f) force
+city_id_source generated as str3
+
+. rename hhcid community_id
+
+. rename rural rural_residence
+
+. rename swgt survey_weight
+
+. save `master_household'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000002.tmp saved as .dta format
+
+. 
+. use "`hh'", clear
+
+. assert _N == 37289
+
+. isid hhid
+
+. isid hhid_2015
+
+. assert !missing(hhid_2013) if track == 1
+
+. assert missing(hhid_2013) if track == 0
+
+. keep hhid hhid_2013 hhid_2015 track a1111 a2000a a2000b asset total_income ///
+>     d3101 d4101a d5102 d6100a h1001 h1004a_1 h1004a_2 g2001 g2004a_1 g2004a_2 ///
+>     a4015 a4007aa d1101 b3030_1 b3030_2 c3001 c7047 k2101 ///
+>     b3045_1 b3045_2 c3004a_1_mc c3004a_2_mc c3004a_3_mc ///
+>     c3004a_4_mc c3004a_5_mc b3047_1 b3047_2 c3007 k2122 ///
+>     h2003_1_mc h2003_6_mc h2003_8_mc
+
+. 
+. merge 1:1 hhid_2015 using `roster', generate(_merge_roster)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            37,289  (_merge_roster==3)
+    -----------------------------------------
+
+. assert _merge_roster == 3
+
+. merge 1:1 hhid using `master_household', generate(_merge_master)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            37,289  (_merge_master==3)
+    -----------------------------------------
+
+. assert _merge_master == 3
+
+. 
+. clonevar __final_hhid = hhid_2015
+
+. rename hhid link_hhid_generic
+
+. rename hhid_2013 source_hhid_2013
+
+. rename hhid_2015 source_hhid_2015
+
+. rename __final_hhid hhid
+
+. gen str10 source_hhid_2017 = ""
+(37,289 missing values generated)
+
+. gen int year = 2015
+
+. 
+. gen double hhsize_questionnaire = 1 + a2000a + a2000b if !missing(a2000a, a2000b) & a2000a >= 0 & a2000b >= 0 & a2000a == floor(a2000a) & a2000b == floor(a2000b)
+(21,791 missing values generated)
+
+. gen double hhsize_difference = family_size - hhsize_questionnaire if !missing(hhsize_questionnaire)
+(21,791 missing values generated)
+
+. gen byte hhsize_discrepancy = hhsize_difference != 0 if !missing(hhsize_difference)
+(21,791 missing values generated)
+
+. 
+. gen double age = year - head_birth_year if head_count == 1 & inrange(head_birth_year, 1900, year)
+(8 missing values generated)
+
+. gen double age_squared = age^2 if !missing(age)
+(8 missing values generated)
+
+. gen byte female = .
+(37,289 missing values generated)
+
+. replace female = 0 if head_sex_raw == 1
+(28,156 real changes made)
+
+. replace female = 1 if head_sex_raw == 2
+(9,133 real changes made)
+
+. gen byte party_member = .
+(37,289 missing values generated)
+
+. replace party_member = 1 if head_party_raw == 2
+(28,804 real changes made)
+
+. replace party_member = 0 if inlist(head_party_raw, 1, 3, 4)
+(6,283 real changes made)
+
+. gen byte rural_hukou = .
+(37,289 missing values generated)
+
+. replace rural_hukou = 1 if head_hukou_raw == 1
+(19,911 real changes made)
+
+. replace rural_hukou = 0 if inlist(head_hukou_raw, 2, 3, 4)
+(17,193 real changes made)
+
+. 
+. gen byte stock_participation = .
+(37,289 missing values generated)
+
+. replace stock_participation = 1 if d3101 == 1
+(3,759 real changes made)
+
+. replace stock_participation = 0 if d3101 == 2
+(22,170 real changes made)
+
+. gen byte fund_participation = .
+(37,289 missing values generated)
+
+. replace fund_participation = 1 if d5102 == 1
+(1,321 real changes made)
+
+. replace fund_participation = 0 if d5102 == 2
+(23,015 real changes made)
+
+. gen byte bond_participation = .
+(37,289 missing values generated)
+
+. replace bond_participation = 0 if strtrim(d4101a) == ""
+(37,077 real changes made)
+
+. replace bond_participation = 1 if !inlist(strtrim(d4101a), "", ".d", ".e", ".n", ".r")
+(210 real changes made)
+
+. gen byte derivative_participation = .
+(37,289 missing values generated)
+
+. replace derivative_participation = 1 if d6100a > 0 & d6100a < .
+(16 real changes made)
+
+. replace derivative_participation = 0 if d6100a == 0 | d6100a == .
+(37,264 real changes made)
+
+. gen byte risky_asset_participation = .
+(37,289 missing values generated)
+
+. replace risky_asset_participation = 1 if stock_participation == 1 | bond_participation == 1 | fund_participation == 1 | derivative_participation == 1
+(4,532 real changes made)
+
+. replace risky_asset_participation = 0 if stock_participation == 0 & bond_participation == 0 & fund_participation == 0 & derivative_participation == 0
+(19,817 real changes made)
+
+. 
+. rename h1001 gift_received_gate
+
+. rename g2001 gift_given_gate
+
+. rename h1004a_1 gift_received_holiday_yuan
+
+. rename h1004a_2 gift_received_ceremony_yuan
+
+. rename g2004a_1 gift_given_holiday_yuan
+
+. rename g2004a_2 gift_given_ceremony_yuan
+
+. 
+. gen double gift_received_yuan = .
+(37,289 missing values generated)
+
+. replace gift_received_yuan = 0 if gift_received_gate == 2 & (missing(gift_received_holiday_yuan) | gift_received_holiday_yuan >= 0) & (missing(gift_received_ceremony_yuan) | gift_received_ceremony_yuan >= 0)
+(21,557 real changes made)
+
+. replace gift_received_yuan = cond(missing(gift_received_holiday_yuan), 0, gift_received_holiday_yuan) + cond(missing(gift_received_ceremony_yuan), 0, gift_received_ceremony_yuan) if gift_received_gate == 1 & (!missing(gift_received_holiday_yuan) | !miss
+> ing(gift_received_ceremony_yuan)) & (missing(gift_received_holiday_yuan) | gift_received_holiday_yuan >= 0) & (missing(gift_received_ceremony_yuan) | gift_received_ceremony_yuan >= 0)
+(12,461 real changes made)
+
+. gen byte gift_received_missing_reason = .
+(37,289 missing values generated)
+
+. replace gift_received_missing_reason = 0 if !missing(gift_received_yuan)
+(34,018 real changes made)
+
+. replace gift_received_missing_reason = 1 if missing(gift_received_gate)
+(176 real changes made)
+
+. replace gift_received_missing_reason = 2 if !missing(gift_received_gate) & !inlist(gift_received_gate, 1, 2)
+(0 real changes made)
+
+. replace gift_received_missing_reason = 3 if gift_received_gate == 1 & missing(gift_received_holiday_yuan) & missing(gift_received_ceremony_yuan)
+(3,095 real changes made)
+
+. replace gift_received_missing_reason = 4 if inlist(gift_received_gate, 1, 2) & ((!missing(gift_received_holiday_yuan) & gift_received_holiday_yuan < 0) | (!missing(gift_received_ceremony_yuan) & gift_received_ceremony_yuan < 0))
+(0 real changes made)
+
+. 
+. gen double gift_received_yuan_strict = .
+(37,289 missing values generated)
+
+. replace gift_received_yuan_strict = 0 if gift_received_gate == 2
+(21,557 real changes made)
+
+. replace gift_received_yuan_strict = gift_received_holiday_yuan + gift_received_ceremony_yuan if gift_received_gate == 1 & !missing(gift_received_holiday_yuan, gift_received_ceremony_yuan) & gift_received_holiday_yuan >= 0 & gift_received_ceremony_yuan >
+> = 0
+(1,387 real changes made)
+
+. 
+. gen double gift_given_yuan = .
+(37,289 missing values generated)
+
+. replace gift_given_yuan = 0 if gift_given_gate == 2 & (missing(gift_given_holiday_yuan) | gift_given_holiday_yuan >= 0) & (missing(gift_given_ceremony_yuan) | gift_given_ceremony_yuan >= 0)
+(8,426 real changes made)
+
+. replace gift_given_yuan = cond(missing(gift_given_holiday_yuan), 0, gift_given_holiday_yuan) + cond(missing(gift_given_ceremony_yuan), 0, gift_given_ceremony_yuan) if gift_given_gate == 1 & (!missing(gift_given_holiday_yuan) | !missing(gift_given_ceremo
+> ny_yuan)) & (missing(gift_given_holiday_yuan) | gift_given_holiday_yuan >= 0) & (missing(gift_given_ceremony_yuan) | gift_given_ceremony_yuan >= 0)
+(26,757 real changes made)
+
+. gen byte gift_given_missing_reason = .
+(37,289 missing values generated)
+
+. replace gift_given_missing_reason = 0 if !missing(gift_given_yuan)
+(35,183 real changes made)
+
+. replace gift_given_missing_reason = 1 if missing(gift_given_gate)
+(176 real changes made)
+
+. replace gift_given_missing_reason = 2 if !missing(gift_given_gate) & !inlist(gift_given_gate, 1, 2)
+(0 real changes made)
+
+. replace gift_given_missing_reason = 3 if gift_given_gate == 1 & missing(gift_given_holiday_yuan) & missing(gift_given_ceremony_yuan)
+(1,930 real changes made)
+
+. replace gift_given_missing_reason = 4 if inlist(gift_given_gate, 1, 2) & ((!missing(gift_given_holiday_yuan) & gift_given_holiday_yuan < 0) | (!missing(gift_given_ceremony_yuan) & gift_given_ceremony_yuan < 0))
+(0 real changes made)
+
+. 
+. gen double gift_given_yuan_strict = .
+(37,289 missing values generated)
+
+. replace gift_given_yuan_strict = 0 if gift_given_gate == 2
+(8,426 real changes made)
+
+. replace gift_given_yuan_strict = gift_given_holiday_yuan + gift_given_ceremony_yuan if gift_given_gate == 1 & !missing(gift_given_holiday_yuan, gift_given_ceremony_yuan) & gift_given_holiday_yuan >= 0 & gift_given_ceremony_yuan >= 0
+(12,655 real changes made)
+
+. 
+. gen double gift_exchange_yuan = gift_received_yuan + gift_given_yuan if !missing(gift_received_yuan, gift_given_yuan)
+(4,799 missing values generated)
+
+. gen double gift_exchange_ln = ln(gift_exchange_yuan + 1) if gift_exchange_yuan >= 0 & !missing(gift_exchange_yuan)
+(4,799 missing values generated)
+
+. gen double gift_received_ln = ln(gift_received_yuan + 1) if gift_received_yuan >= 0 & !missing(gift_received_yuan)
+(3,271 missing values generated)
+
+. gen double gift_given_ln = ln(gift_given_yuan + 1) if gift_given_yuan >= 0 & !missing(gift_given_yuan)
+(2,106 missing values generated)
+
+. gen byte gift_exchange_positive = gift_exchange_yuan > 0 if !missing(gift_exchange_yuan)
+(4,799 missing values generated)
+
+. gen byte gift_exchange_observed = !missing(gift_exchange_yuan)
+
+. 
+. gen double gift_exchange_yuan_strict = gift_received_yuan_strict + gift_given_yuan_strict if !missing(gift_received_yuan_strict, gift_given_yuan_strict)
+(24,057 missing values generated)
+
+. gen double gift_exchange_ln_strict = ln(gift_exchange_yuan_strict + 1) if gift_exchange_yuan_strict >= 0 & !missing(gift_exchange_yuan_strict)
+(24,057 missing values generated)
+
+. gen double gift_received_ln_strict = ln(gift_received_yuan_strict + 1) if gift_received_yuan_strict >= 0 & !missing(gift_received_yuan_strict)
+(14,345 missing values generated)
+
+. gen double gift_given_ln_strict = ln(gift_given_yuan_strict + 1) if gift_given_yuan_strict >= 0 & !missing(gift_given_yuan_strict)
+(16,208 missing values generated)
+
+. gen byte gift_exchange_positive_strict = gift_exchange_yuan_strict > 0 if !missing(gift_exchange_yuan_strict)
+(24,057 missing values generated)
+
+. gen byte gift_exchange_observed_strict = !missing(gift_exchange_yuan_strict)
+
+. 
+. gen double household_assets_yuan = asset if !missing(asset) & asset >= 0
+
+. gen double household_assets_10k = household_assets_yuan / 10000 if !missing(household_assets_yuan)
+
+. gen double household_income_yuan = total_income if !missing(total_income)
+
+. gen double household_income_10k = household_income_yuan / 10000 if !missing(household_income_yuan)
+
+. gen double household_income_pc_10k = household_income_yuan / family_size / 10000 if !missing(household_income_yuan) & family_size > 0
+
+. gen byte household_income_negative = household_income_yuan < 0 if !missing(household_income_yuan)
+
+. 
+. gen double trust_ordinal = 6 - a4015 if inrange(a4015, 1, 5)
+(17,197 missing values generated)
+
+. gen byte financial_literacy_risk = .
+(37,289 missing values generated)
+
+. replace financial_literacy_risk = 1 if a4007aa == 1
+(18,026 real changes made)
+
+. replace financial_literacy_risk = 0 if inrange(a4007aa, 2, 5)
+(16,864 real changes made)
+
+. gen byte formal_financial_access = .
+(37,289 missing values generated)
+
+. replace formal_financial_access = 1 if d1101 == 1
+(25,791 real changes made)
+
+. replace formal_financial_access = 0 if d1101 == 2
+(11,061 real changes made)
+
+. gen byte informal_credit_candidate = .
+(37,289 missing values generated)
+
+. replace informal_credit_candidate = 1 if b3030_1 == 1 | b3030_2 == 1 | c3001 == 1 | c7047 == 1 | k2101 == 1
+(9,985 real changes made)
+
+. replace informal_credit_candidate = 0 if k2101 == 2 & informal_credit_candidate != 1
+(27,132 real changes made)
+
+. egen byte __paper_credit_mc = rowmax(c3004a_1_mc c3004a_2_mc c3004a_3_mc c3004a_4_mc c3004a_5_mc)
+(34,248 missing values generated)
+
+. gen byte informal_credit_paper = .
+(37,289 missing values generated)
+
+. replace informal_credit_paper = 1 if inrange(b3045_1, 1, 5) | inrange(b3045_2, 1, 5) | __paper_credit_mc == 1 | k2101 == 1
+(9,627 real changes made)
+
+. replace informal_credit_paper = 0 if k2101 == 2 & missing(informal_credit_paper)
+(27,490 real changes made)
+
+. gen byte require_interest_paper = .
+(37,289 missing values generated)
+
+. replace require_interest_paper = 1 if b3047_1 == 1 | b3047_2 == 1 | c3007 == 1 | k2122 == 1
+(1,031 real changes made)
+
+. replace require_interest_paper = 0 if missing(require_interest_paper) & (b3047_1 == 2 | b3047_2 == 2 | c3007 == 2 | k2122 == 2)
+(8,701 real changes made)
+
+. drop __paper_credit_mc
+
+. gen byte lottery_observed = !missing(h2003_1_mc, h2003_6_mc, h2003_8_mc)
+
+. gen byte lottery_participation = .
+(37,289 missing values generated)
+
+. replace lottery_participation = 1 if lottery_observed == 1 & (h2003_1_mc == 1 | h2003_6_mc == 1)
+(876 real changes made)
+
+. replace lottery_participation = 0 if lottery_observed == 1 & h2003_1_mc == 0 & h2003_6_mc == 0
+(36,362 real changes made)
+
+. 
+. gen byte network_size_available = 0
+
+. gen byte social_interaction_available = 0
+
+. gen byte formal_bank_loan_available = 0
+
+. gen byte institutional_trust_available = 0
+
+. gen byte safe_asset_available = 0
+
+. 
+. drop a1111 a2000a a2000b asset total_income d3101 d4101a d5102 d6100a a4015 a4007aa d1101 b3030_1 b3030_2 c3001 c7047 k2101 h2003_1_mc h2003_6_mc h2003_8_mc _merge_roster _merge_master ///
+>     b3045_1 b3045_2 c3004a_1_mc c3004a_2_mc c3004a_3_mc ///
+>     c3004a_4_mc c3004a_5_mc b3047_1 b3047_2 c3007 k2122
+
+. 
+. label data "IRFA CHFS 2015 household working data"
+
+. label variable hhid "Wave-specific household identifier"
+
+. label variable year "Survey year"
+
+. label variable family_size "Roster household size"
+
+. label variable age "Household head age"
+
+. label variable age_squared "Household head age squared"
+
+. label variable female "Female household head"
+
+. label variable party_member "CCP household head"
+
+. label variable rural_hukou "Rural hukou household head"
+
+. label variable stock_participation "Household holds a stock account"
+
+. label variable risky_asset_participation "Household holds any mapped risky asset"
+
+. label variable gift_exchange_ln "Log of total gift exchange plus one"
+
+. label variable gift_received_yuan_strict "Strict gifts received, RMB"
+
+. label variable gift_given_yuan_strict "Strict gifts given, RMB"
+
+. label variable gift_exchange_yuan_strict "Strict total gift exchange, RMB"
+
+. label variable gift_received_ln_strict "Strict log gifts received plus one"
+
+. label variable gift_given_ln_strict "Strict log gifts given plus one"
+
+. label variable gift_exchange_ln_strict "Strict log total gift exchange plus one"
+
+. label variable gift_exchange_positive_strict "Strict total gift exchange is positive"
+
+. label variable gift_exchange_observed_strict "Strict total gift exchange is observed"
+
+. label variable household_assets_10k "Total household assets, RMB 10,000"
+
+. label variable household_income_pc_10k "Per-capita household income, RMB 10,000"
+
+. label variable rural_residence "Household resides in a rural area"
+
+. label variable province_id "Province code"
+
+. label variable city_id_source "Source city identifier"
+
+. label variable community_id "Community identifier"
+
+. label variable survey_weight "Household survey weight"
+
+. label variable trust_ordinal "Interpersonal trust, higher is more trust"
+
+. label variable financial_literacy_risk "Correct stock versus fund risk item"
+
+. label variable formal_financial_access "Household has a formal bank account"
+
+. label variable informal_credit_candidate "Broad informal-credit candidate measure"
+
+. label variable informal_credit_paper "Paper-mapped informal-credit proxy"
+
+. label variable require_interest_paper "Any mapped informal loan carries interest"
+
+. label variable lottery_observed "Gambling-income item is observed"
+
+. 
+. order hhid year source_hhid_2013 source_hhid_2015 source_hhid_2017 link_hhid_generic track province_id province_name city_id_source community_id rural_residence survey_weight head_count head_anomaly family_size
+
+. sort hhid
+
+. isid hhid
+
+. assert _N == 37289
+
+. compress
+  variable rural_residence was float now byte
+  variable family_size was int now byte
+  variable head_flag_missing_count was int now byte
+  variable city_code_source was float now int
+  variable head_pline was double now byte
+  variable head_birth_year was double now int
+  variable head_sex_raw was double now byte
+  variable head_party_raw was double now byte
+  variable head_hukou_raw was double now byte
+  variable education_code was double now byte
+  variable health_code was double now byte
+  variable hhsize_questionnaire was double now byte
+  variable hhsize_difference was double now byte
+  variable age was double now int
+  variable age_squared was double now int
+  variable gift_received_yuan was double now long
+  variable gift_received_yuan_strict was double now long
+  variable gift_given_yuan was double now long
+  variable gift_given_yuan_strict was double now long
+  variable gift_exchange_yuan was double now long
+  variable gift_exchange_yuan_strict was double now long
+  variable household_income_yuan was double now long
+  variable trust_ordinal was double now byte
+  variable source_hhid_2017 was str10 now str1
+  (4,661,125 bytes saved)
+
+. save "`out'/data/intermediate/irfa_2015_household_working.dta", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/data/intermediate/irfa_2015_household_working.dta saved
+
+. 
+. display "WAVE_BUILD_RESULT=PASS WAVE=2015 N=" _N
+WAVE_BUILD_RESULT=PASS WAVE=2015 N=37289
+
+. display "WAVE_BUILD_2015=PASS"
+WAVE_BUILD_2015=PASS
+
+. log close w2015
+      name:  w2015
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/logs/02_clean_2015.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:27
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
