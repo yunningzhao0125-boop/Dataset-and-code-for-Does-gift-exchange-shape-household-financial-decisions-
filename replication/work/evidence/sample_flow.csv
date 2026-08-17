@@ -1,0 +1,13 @@
+stage,observations
+working_all_households,105441
+unique_head_households,105435
+both_outcomes_observed,92282
+baseline_controls_complete,97629
+analysis_gate_aware_gift_observed,91057
+analysis_gate_aware_gift_positive,73164
+analysis_strict_gift_observed,36311
+analysis_strict_gift_positive,18600
+common_gift_observed,73598
+common_positive_gift,60117
+strict_common_gift_observed,29051
+strict_common_positive_gift,15738
