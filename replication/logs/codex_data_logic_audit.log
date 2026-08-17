@@ -1,0 +1,316 @@
+---------------------------------------------------------------------------------
+      name:  logic_audit
+       log:  C:/Users/86158/Desktop/test codex/replication/logs/codex_data_logic_
+> audit.log
+  log type:  text
+ opened on:  15 Aug 2026, 17:43:39
+
+. 
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. 
+. display "AUDIT_SAMPLE_COUNTS"
+AUDIT_SAMPLE_COUNTS
+
+. count if sample_submission_primary == 1
+  73,546
+
+. display "PRIMARY_OBSERVED_GIFT_N=" r(N)
+PRIMARY_OBSERVED_GIFT_N=73546
+
+. count if sample_submission_positive == 1
+  60,081
+
+. display "PRIMARY_POSITIVE_GIFT_N=" r(N)
+PRIMARY_POSITIVE_GIFT_N=60081
+
+. count if sample_submission_primary == 1 & gift_exchange_yuan == 0
+  13,465
+
+. display "VALID_ZERO_GIFT_DROPPED_FROM_BASELINE_N=" r(N)
+VALID_ZERO_GIFT_DROPPED_FROM_BASELINE_N=13465
+
+. 
+. display "AUDIT_PARTIAL_COMPONENT_IMPUTATION"
+AUDIT_PARTIAL_COMPONENT_IMPUTATION
+
+. gen byte partial_received = gift_received_gate == 1 & ///
+>     (missing(gift_received_holiday_yuan) != missing(gift_received_ceremony_yuan
+> ))
+
+. gen byte partial_given = gift_given_gate == 1 & ///
+>     (missing(gift_given_holiday_yuan) != missing(gift_given_ceremony_yuan))
+
+. count if sample_submission_positive == 1 & (partial_received | partial_given)
+  44,349
+
+. display "BASELINE_WITH_MISSING_GIFT_COMPONENT_TREATED_AS_ZERO_N=" r(N)
+BASELINE_WITH_MISSING_GIFT_COMPONENT_TREATED_AS_ZERO_N=44349
+
+. count if sample_submission_positive == 1 & sample_gift_strict_positive == 0
+  44,349
+
+. display "BASELINE_NOT_IN_STRICT_POSITIVE_SAMPLE_N=" r(N)
+BASELINE_NOT_IN_STRICT_POSITIVE_SAMPLE_N=44349
+
+. count if sample_submission_positive == 1 & sample_gift_strict_positive == 1
+  15,732
+
+. display "BASELINE_IN_STRICT_POSITIVE_SAMPLE_N=" r(N)
+BASELINE_IN_STRICT_POSITIVE_SAMPLE_N=15732
+
+. 
+. display "AUDIT_UNWEIGHTED_VS_WEIGHTED"
+AUDIT_UNWEIGHTED_VS_WEIGHTED
+
+. local C "age age_squared female family_size_w party_member rural_hukou rural_re
+> sidence household_assets_10k_w household_income_pc_10k_w i.province_id i.year"
+
+. quietly probit stock_participation gift_exchange_ln `C' if sample_submission_po
+> sitive == 1, vce(cluster city_id_stable)
+
+. display "STOCK_UNWEIGHTED_B=" _b[gift_exchange_ln] " SE=" _se[gift_exchange_ln]
+>  " N=" e(N)
+STOCK_UNWEIGHTED_B=.08071986 SE=.00832671 N=60081
+
+. quietly probit stock_participation gift_exchange_ln `C' [pw=survey_weight_wave_
+> norm] if sample_submission_positive == 1, vce(cluster city_id_stable)
+
+. display "STOCK_WEIGHTED_B=" _b[gift_exchange_ln] " SE=" _se[gift_exchange_ln] "
+>  N=" e(N)
+STOCK_WEIGHTED_B=.08117094 SE=.01114853 N=60081
+
+. quietly probit risky_asset_participation gift_exchange_ln `C' if sample_submiss
+> ion_positive == 1, vce(cluster city_id_stable)
+
+. display "RISKY_UNWEIGHTED_B=" _b[gift_exchange_ln] " SE=" _se[gift_exchange_ln]
+>  " N=" e(N)
+RISKY_UNWEIGHTED_B=.0961621 SE=.00770886 N=60081
+
+. quietly probit risky_asset_participation gift_exchange_ln `C' [pw=survey_weight
+> _wave_norm] if sample_submission_positive == 1, vce(cluster city_id_stable)
+
+. display "RISKY_WEIGHTED_B=" _b[gift_exchange_ln] " SE=" _se[gift_exchange_ln] "
+>  N=" e(N)
+RISKY_WEIGHTED_B=.0951425 SE=.01003559 N=60081
+
+. 
+. display "AUDIT_ZERO_INCLUSION_SENSITIVITY"
+AUDIT_ZERO_INCLUSION_SENSITIVITY
+
+. quietly probit stock_participation gift_exchange_ln `C' if sample_submission_pr
+> imary == 1, vce(cluster city_id_stable)
+
+. display "STOCK_INCLUDE_ZERO_B=" _b[gift_exchange_ln] " SE=" _se[gift_exchange_l
+> n] " N=" e(N)
+STOCK_INCLUDE_ZERO_B=.04017055 SE=.00296505 N=73546
+
+. quietly probit risky_asset_participation gift_exchange_ln `C' if sample_submiss
+> ion_primary == 1, vce(cluster city_id_stable)
+
+. display "RISKY_INCLUDE_ZERO_B=" _b[gift_exchange_ln] " SE=" _se[gift_exchange_l
+> n] " N=" e(N)
+RISKY_INCLUDE_ZERO_B=.04333997 SE=.00327326 N=73546
+
+. 
+. display "AUDIT_STRICT_GIFT_SENSITIVITY"
+AUDIT_STRICT_GIFT_SENSITIVITY
+
+. quietly probit stock_participation gift_exchange_ln_strict `C' if sample_gift_s
+> trict_positive == 1 & sample_semantic_valid == 1, vce(cluster city_id_stable)
+
+. display "STOCK_STRICT_B=" _b[gift_exchange_ln_strict] " SE=" _se[gift_exchange_
+> ln_strict] " N=" e(N)
+STOCK_STRICT_B=.05333094 SE=.01398119 N=15732
+
+. quietly probit risky_asset_participation gift_exchange_ln_strict `C' if sample_
+> gift_strict_positive == 1 & sample_semantic_valid == 1, vce(cluster city_id_sta
+> ble)
+
+. display "RISKY_STRICT_B=" _b[gift_exchange_ln_strict] " SE=" _se[gift_exchange_
+> ln_strict] " N=" e(N)
+RISKY_STRICT_B=.07640308 SE=.01349691 N=15732
+
+. 
+. display "AUDIT_TABLE3_YEAR_ADJUSTMENT"
+AUDIT_TABLE3_YEAR_ADJUSTMENT
+
+. gen byte gift_high = gift_exchange_yuan > 0 if sample_submission_primary == 1
+(31,889 missing values generated)
+
+. quietly regress stock_participation gift_high if sample_submission_primary == 1
+
+. display "TABLE3_STOCK_POOLED_DIFF_LOW_MINUS_HIGH=" -_b[gift_high] " SE=" _se[gi
+> ft_high]
+TABLE3_STOCK_POOLED_DIFF_LOW_MINUS_HIGH=-.05630632 SE=.00289766
+
+. quietly regress stock_participation gift_high i.year if sample_submission_prima
+> ry == 1, vce(cluster city_id_stable)
+
+. display "TABLE3_STOCK_YEAR_ADJUSTED_HIGH_MINUS_LOW=" _b[gift_high] " SE=" _se[g
+> ift_high]
+TABLE3_STOCK_YEAR_ADJUSTED_HIGH_MINUS_LOW=.05441432 SE=.00550431
+
+. quietly regress risky_asset_participation gift_high if sample_submission_primar
+> y == 1
+
+. display "TABLE3_RISKY_POOLED_DIFF_LOW_MINUS_HIGH=" -_b[gift_high] " SE=" _se[gi
+> ft_high]
+TABLE3_RISKY_POOLED_DIFF_LOW_MINUS_HIGH=-.06897228 SE=.00318098
+
+. quietly regress risky_asset_participation gift_high i.year if sample_submission
+> _primary == 1, vce(cluster city_id_stable)
+
+. display "TABLE3_RISKY_YEAR_ADJUSTED_HIGH_MINUS_LOW=" _b[gift_high] " SE=" _se[g
+> ift_high]
+TABLE3_RISKY_YEAR_ADJUSTED_HIGH_MINUS_LOW=.06609254 SE=.00588945
+
+. 
+. display "AUDIT_PUBLIC_SECTOR_COVERAGE"
+AUDIT_PUBLIC_SECTOR_COVERAGE
+
+. count if sample_submission_positive == 1 & employment_unit_observed_members == 
+> 0
+  19,643
+
+. display "BASELINE_NO_EMPLOYMENT_UNIT_CODE_N=" r(N)
+BASELINE_NO_EMPLOYMENT_UNIT_CODE_N=19643
+
+. count if sample_submission_positive == 1 & public_sector_broad == 0
+  44,878
+
+. display "BASELINE_CODED_NONPUBLIC_N=" r(N)
+BASELINE_CODED_NONPUBLIC_N=44878
+
+. count if sample_submission_positive == 1 & public_sector_broad == 0 & employmen
+> t_unit_observed_members == 0
+  19,643
+
+. display "PANEL_C_NONPUBLIC_WITH_NO_UNIT_CODE_N=" r(N)
+PANEL_C_NONPUBLIC_WITH_NO_UNIT_CODE_N=19643
+
+. 
+. display "AUDIT_MONETARY_COMPARABILITY"
+AUDIT_MONETARY_COMPARABILITY
+
+. table year if sample_submission_positive == 1, statistic(median gift_exchange_y
+> uan) statistic(median household_assets_10k) statistic(median household_income_p
+> c_10k)
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+            |  Gate-aware total gift exchange, nominal RMB   Total household assets, RMB 10,000   Per-capita household income, RMB 10,000
+------------+----------------------------------------------------------------------------------------------------------------------------
+Survey year |                                                                                                                            
+  2013      |                                         3000                             35.09184                                   1.29964
+  2015      |                                         4000                             57.14023                                   1.93125
+  2017      |                                         3000                              44.5861                                     2.186
+  Total     |                                         3100                              44.4209                                   1.78625
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+. 
+. display "AUDIT_CITY_KEY"
+AUDIT_CITY_KEY
+
+. bysort city_norm province_id: gen byte city_prov_tag = _n == 1 if !missing(city
+> _norm, province_id)
+(18 missing values generated)
+
+. bysort city_norm: egen int city_province_count = total(city_prov_tag)
+
+. count if city_province_count > 1 & !missing(city_norm)
+  0
+
+. display "ROWS_WITH_CITY_NAME_IN_MULTIPLE_PROVINCES=" r(N)
+ROWS_WITH_CITY_NAME_IN_MULTIPLE_PROVINCES=0
+
+. 
+. display "AUDIT_RAW_VARIABLE_METADATA"
+AUDIT_RAW_VARIABLE_METADATA
+
+. use "$IRFA_RAW_ROOT/chfs2015_hh_20191120_version14.dta", clear
+
+. describe d4101a d6100a a4004a a4015 h3042 e1001
+
+Variable      Storage   Display    Value
+    name         type    format    label      Variable label
+---------------------------------------------------------------------------------
+d4101a          str6    %9s                   拥有债券类型
+d6100a          long    %10.0g                目前所持金融衍生品市值
+a4004a          byte    %10.0g                100元存1年定期，年利4%，受访者认为
+                                                > 到期将获得的本金和利息为
+a4015           byte    %10.0g                受访者对不认识的人信任度
+h3042           byte    %10.0g                是否相信政府养老保险会按照承诺给钱
+e1001           byte    %10.0g                是否因家庭成员教育有银行贷款
+
+. tabulate d6100a, missing
+
+     目前所 |
+     持金融 |
+     衍生品 |
+       市值 |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |          1        0.00        0.00
+      10000 |          2        0.01        0.01
+      20000 |          2        0.01        0.01
+      50000 |          3        0.01        0.02
+      80000 |          1        0.00        0.02
+     100000 |          1        0.00        0.03
+     150000 |          1        0.00        0.03
+     200000 |          1        0.00        0.03
+     400000 |          1        0.00        0.03
+     500000 |          1        0.00        0.04
+    1000000 |          1        0.00        0.04
+    2000000 |          2        0.01        0.05
+          . |     37,263       99.93       99.98
+         .d |          5        0.01       99.99
+         .r |          4        0.01      100.00
+------------+-----------------------------------
+      Total |     37,289      100.00
+
+. use "$IRFA_RAW_ROOT/chfs2017_hh_202206.dta", clear
+
+. describe d4101b d6100a h3105 h3380 e1001
+
+Variable      Storage   Display    Value
+    name         type    format    label      Variable label
+---------------------------------------------------------------------------------
+d4101b          str6    %9s                   拥有债券类型
+d6100a          long    %12.0g                衍生品价值（元）
+h3105           byte    %8.0g                 100元年利4%本息计算
+h3380           byte    %8.0g                 对不认识的人信任度
+e1001           byte    %8.0g                 是否有未还清教育负债
+
+. tabulate d6100a, missing
+
+     衍生品 |
+     价值（ |
+       元） |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          0 |          1        0.00        0.00
+       4000 |          1        0.00        0.00
+      10000 |          3        0.01        0.01
+      23000 |          1        0.00        0.01
+      30000 |          3        0.01        0.02
+      40000 |          2        0.00        0.03
+      50000 |          1        0.00        0.03
+     100000 |          2        0.00        0.03
+     750000 |          1        0.00        0.04
+    1000000 |          1        0.00        0.04
+    2000000 |          1        0.00        0.04
+          . |     39,989       99.95       99.99
+         .d |          5        0.01      100.00
+------------+-----------------------------------
+      Total |     40,011      100.00
+
+. 
+. display "AUDIT_COMPLETE"
+AUDIT_COMPLETE
+
+. log close logic_audit
+      name:  logic_audit
+       log:  C:/Users/86158/Desktop/test codex/replication/logs/codex_data_logic_
+> audit.log
+  log type:  text
+ closed on:  15 Aug 2026, 17:43:49
+---------------------------------------------------------------------------------
