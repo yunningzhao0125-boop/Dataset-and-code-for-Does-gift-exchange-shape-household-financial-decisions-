@@ -1,0 +1,22 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/logs/00_master.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:34
+
+. confirm file "`out'/data/irfa_household_year_working.dta"
+
+. confirm file "`out'/data/irfa_household_year_analysis.dta"
+
+. display "MASTER_RESULT=PASS"
+MASTER_RESULT=PASS
+
+. display "DATA_BUILD_MASTER=PASS"
+DATA_BUILD_MASTER=PASS
+
+. log close master
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/logs/00_master.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:34
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
