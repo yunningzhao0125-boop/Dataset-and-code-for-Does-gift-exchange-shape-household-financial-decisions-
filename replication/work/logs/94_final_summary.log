@@ -1,0 +1,220 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  summary94
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/logs/94_final_summary.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:34
+
+. 
+. use "`out'/data/irfa_household_year_analysis.dta", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. display "FINAL_SUMMARY_START"
+FINAL_SUMMARY_START
+
+. describe, short
+
+Contains data from C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/data/irfa_household_year_analysis.dta
+ Observations:       105,435                  IRFA CHFS 2013-2017 head-valid analysis data
+    Variables:           131                  15 Aug 2026 22:39
+Sorted by: hhid  year
+
+. tab year
+
+Survey year |      Freq.     Percent        Cum.
+------------+-----------------------------------
+       2013 |     28,135       26.68       26.68
+       2015 |     37,289       35.37       62.05
+       2017 |     40,011       37.95      100.00
+------------+-----------------------------------
+      Total |    105,435      100.00
+
+. 
+. foreach v in stock_participation risky_asset_participation gift_exchange_positive gift_exchange_observed_strict gift_exchange_positive_strict informal_credit_paper require_interest_paper trust_binary financial_literacy_risk formal_financial_access lotte
+> ry_participation derivative_participation {
+  2.     quietly count if !missing(`v')
+  3.     local nonmissing_n = r(N)
+  4.     quietly count if `v' == 1
+  5.     local one_n = r(N)
+  6.     display "COVERAGE=`v' NONMISSING=" `nonmissing_n' " ONE=" `one_n'
+  7. }
+COVERAGE=stock_participation NONMISSING=93971 ONE=9417
+COVERAGE=risky_asset_participation NONMISSING=92294 ONE=11741
+COVERAGE=gift_exchange_positive NONMISSING=91057 ONE=73164
+COVERAGE=gift_exchange_observed_strict NONMISSING=105435 ONE=36311
+COVERAGE=gift_exchange_positive_strict NONMISSING=36311 ONE=18600
+COVERAGE=informal_credit_paper NONMISSING=105108 ONE=29355
+COVERAGE=require_interest_paper NONMISSING=29798 ONE=2906
+COVERAGE=trust_binary NONMISSING=76008 ONE=27734
+COVERAGE=financial_literacy_risk NONMISSING=75184 ONE=31931
+COVERAGE=formal_financial_access NONMISSING=102572 ONE=76422
+COVERAGE=lottery_participation NONMISSING=105370 ONE=2483
+COVERAGE=derivative_participation NONMISSING=105416 ONE=79
+
+. 
+. foreach v in sample_core_outcomes sample_core_controls sample_gift_observed_common sample_baseline_common sample_gift_strict_common sample_gift_strict_positive sample_incremental_literacy sample_incremental_access sample_mechanism_credit_paper sample_me
+> chanism_interest sample_mechanism_trust {
+  2.     quietly count if `v' == 1
+  3.     display "SAMPLE=`v' N=" r(N)
+  4. }
+SAMPLE=sample_core_outcomes N=92276
+SAMPLE=sample_core_controls N=97629
+SAMPLE=sample_gift_observed_common N=73598
+SAMPLE=sample_baseline_common N=60117
+SAMPLE=sample_gift_strict_common N=29051
+SAMPLE=sample_gift_strict_positive N=15738
+SAMPLE=sample_incremental_literacy N=41685
+SAMPLE=sample_incremental_access N=58895
+SAMPLE=sample_mechanism_credit_paper N=60039
+SAMPLE=sample_mechanism_interest N=18775
+SAMPLE=sample_mechanism_trust N=44032
+
+. 
+. summarize gift_exchange_ln age family_size_w household_assets_10k_w household_income_pc_10k_w
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+gift_exch~ln |     91,057    6.419768    3.373075          0   13.54108
+         age |    105,414    53.49255    14.41473          0        117
+family_siz~w |    105,435    3.378233    1.564345          1          8
+hous~s_10k_w |    105,433    90.27454    152.7434        .17     928.92
+hous~c_10k_w |    105,435     2.46541    3.324922     -.0773     21.435
+
+. 
+. foreach condition in "age < 18" "age > 100" "age < 18 & sample_baseline_common == 1" "age > 100 & sample_baseline_common == 1" {
+  2.     quietly count if `condition' & !missing(age)
+  3.     display "AGE_CHECK=`condition' N=" r(N)
+  4. }
+AGE_CHECK=age < 18 N=80
+AGE_CHECK=age > 100 N=14
+AGE_CHECK=age < 18 & sample_baseline_common == 1 N=19
+AGE_CHECK=age > 100 & sample_baseline_common == 1 N=3
+
+. list hhid year head_birth_year age sample_baseline_common if (age < 18 | age > 100) & !missing(age), noobs abbreviate(24)
+
+  +--------------------------------------------------------------------+
+  |       hhid   year   head_birth_year   age   sample_baseline_common |
+  |--------------------------------------------------------------------|
+  | 2013000339   2013              2008     5                        0 |
+  | 2013000466   2013              1902   111                        1 |
+  | 2013000508   2013              1900   113                        0 |
+  | 2013000630   2013              2013     0                        0 |
+  | 2013002366   2013              2012     1                        0 |
+  |--------------------------------------------------------------------|
+  | 2013004346   2013              1997    16                        0 |
+  | 2013005369   2013              2003    10                        0 |
+  | 2013006791   2013              1996    17                        0 |
+  | 2013008622   2013              2006     7                        0 |
+  | 2013009240   2013              1996    17                        1 |
+  |--------------------------------------------------------------------|
+  | 2013009748   2013              1996    17                        0 |
+  | 2013010955   2013              2000    13                        0 |
+  | 2013010973   2013              1996    17                        1 |
+  | 2013012981   2013              1996    17                        1 |
+  | 2013013150   2013              1900   113                        0 |
+  |--------------------------------------------------------------------|
+  | 2013013624   2013              1996    17                        1 |
+  | 2013013817   2013              2005     8                        0 |
+  | 2013014335   2013              1902   111                        0 |
+  | 2013014407   2013              2009     4                        0 |
+  | 2013016528   2013              1996    17                        1 |
+  |--------------------------------------------------------------------|
+  | 2013018897   2013              2008     5                        0 |
+  | 2013018941   2013              1997    16                        0 |
+  | 2013019597   2013              2003    10                        0 |
+  | 2013020086   2013              1999    14                        0 |
+  | 2013021420   2013              1912   101                        1 |
+  |--------------------------------------------------------------------|
+  | 2013023944   2013              1996    17                        1 |
+  | 2013024253   2013              1900   113                        1 |
+  | 2013025325   2013              1997    16                        0 |
+  | 2013026726   2013              1998    15                        0 |
+  | 2013027863   2013              1996    17                        0 |
+  |--------------------------------------------------------------------|
+  | 2013028061   2013              2005     8                        0 |
+  | 2015000087   2015              2002    13                        0 |
+  | 2015000197   2015              1998    17                        0 |
+  | 2015003608   2015              2012     3                        0 |
+  | 2015004931   2015              1998    17                        1 |
+  |--------------------------------------------------------------------|
+  | 2015005871   2015              1998    17                        0 |
+  | 2015005886   2015              1998    17                        0 |
+  | 2015007246   2015              1998    17                        1 |
+  | 2015007660   2015              1999    16                        0 |
+  | 2015009396   2015              1998    17                        1 |
+  |--------------------------------------------------------------------|
+  | 2015009436   2015              1998    17                        1 |
+  | 2015014810   2015              2000    15                        0 |
+  | 2015014837   2015              1998    17                        0 |
+  | 2015019080   2015              2003    12                        0 |
+  | 2015020039   2015              1914   101                        0 |
+  |--------------------------------------------------------------------|
+  | 2015020051   2015              1998    17                        0 |
+  | 2015020926   2015              1998    17                        0 |
+  | 2015024100   2015              1998    17                        0 |
+  | 2015024168   2015              2010     5                        1 |
+  | 2015024603   2015              2012     3                        1 |
+  |--------------------------------------------------------------------|
+  | 2015025149   2015              1998    17                        1 |
+  | 2015025707   2015              1998    17                        1 |
+  | 2015026799   2015              1999    16                        0 |
+  | 2015028119   2015              2011     4                        0 |
+  | 2015028793   2015              2007     8                        0 |
+  |--------------------------------------------------------------------|
+  | 2015028860   2015              2003    12                        0 |
+  | 2015029185   2015              1998    17                        0 |
+  | 2015031495   2015              1998    17                        0 |
+  | 2015032788   2015              1998    17                        0 |
+  | 2015034305   2015              1998    17                        0 |
+  |--------------------------------------------------------------------|
+  | 2017000435   2017              2000    17                        0 |
+  | 2017002663   2017              2000    17                        0 |
+  | 2017005966   2017              2000    17                        0 |
+  | 2017006842   2017              1915   102                        0 |
+  | 2017007263   2017              2008     9                        0 |
+  |--------------------------------------------------------------------|
+  | 2017007731   2017              2000    17                        1 |
+  | 2017010952   2017              2013     4                        0 |
+  | 2017012351   2017              2000    17                        0 |
+  | 2017012503   2017              2001    16                        0 |
+  | 2017014211   2017              2008     9                        0 |
+  |--------------------------------------------------------------------|
+  | 2017014456   2017              1900   117                        0 |
+  | 2017015410   2017              2000    17                        1 |
+  | 2017016806   2017              2000    17                        0 |
+  | 2017017881   2017              2014     3                        0 |
+  | 2017021989   2017              1900   117                        0 |
+  |--------------------------------------------------------------------|
+  | 2017022329   2017              2006    11                        0 |
+  | 2017022603   2017              2000    17                        0 |
+  | 2017022608   2017              2000    17                        1 |
+  | 2017022671   2017              2005    12                        1 |
+  | 2017023314   2017              2001    16                        0 |
+  |--------------------------------------------------------------------|
+  | 2017024147   2017              2001    16                        1 |
+  | 2017026101   2017              2012     5                        0 |
+  | 2017026367   2017              2001    16                        0 |
+  | 2017026893   2017              2000    17                        0 |
+  | 2017029081   2017              2001    16                        0 |
+  |--------------------------------------------------------------------|
+  | 2017030774   2017              2004    13                        0 |
+  | 2017032684   2017              1900   117                        0 |
+  | 2017033302   2017              2003    14                        0 |
+  | 2017035633   2017              2001    16                        0 |
+  | 2017036354   2017              1900   117                        0 |
+  |--------------------------------------------------------------------|
+  | 2017036590   2017              1900   117                        0 |
+  | 2017036818   2017              2000    17                        0 |
+  | 2017037072   2017              2000    17                        0 |
+  | 2017038464   2017              1900   117                        0 |
+  +--------------------------------------------------------------------+
+
+. 
+. display "FINAL_SUMMARY=PASS"
+FINAL_SUMMARY=PASS
+
+. log close summary94
+      name:  summary94
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/logs/94_final_summary.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:34
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
