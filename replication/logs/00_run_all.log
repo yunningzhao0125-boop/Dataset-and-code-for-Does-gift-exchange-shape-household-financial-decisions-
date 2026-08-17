@@ -1,0 +1,4011 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:23
+
+. display "IRFA_REPLICATION_RUN=START"
+IRFA_REPLICATION_RUN=START
+
+. 
+. * Data build: all substantive transformations are kept in numbered modules.
+. do "$IRFA_PACKAGE_ROOT/code/data_build/00_master.do"
+
+. * Reviewer replication note
+. * Purpose: orchestrate the complete CHFS 2013/2015/2017 data build.
+. * Inputs: separate household, individual, and master DTA files for each wave.
+. * Outputs: labeled household-year analysis DTA used by manuscript Tables 1-11.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. 
+. quietly do "config/01_paths.do"
+
+. local out "$IRFA_WORK_ROOT"
+
+. 
+. capture mkdir "`out'/logs"
+
+. capture mkdir "`out'/data"
+
+. capture mkdir "`out'/data/intermediate"
+
+. capture mkdir "`out'/evidence"
+
+. 
+. * Clean each wave independently, append, construct variables, and validate the result.
+. do "$IRFA_PACKAGE_ROOT/code/data_build/01_clean_2013.do"
+
+. * Reviewer replication note
+. * Purpose: clean the CHFS 2013 roster, household, and master files.
+. * Inputs: three separate 2013 supplier DTA files under data/raw/chfs.
+. * Outputs: one labeled 2013 household working DTA feeding manuscript Tables 1-11.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. set maxvar 32767
+
+
+. set varabbrev off
+
+. set linesize 255
+
+. capture log close _all
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:34
+
+. do "$IRFA_PACKAGE_ROOT/code/linkage/20_build_geography.do"
+
+. * Build the stable household-city key used for fixed effects and clustering.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. 
+. quietly do "config/01_paths.do"
+
+. capture log close geography
+
+. log using "$IRFA_LOGS/20_build_geography.log", text replace name(geography)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  geography
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/20_build_geography.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:34
+
+. 
+. foreach f in "$IRFA_CITY13_DTA" "$IRFA_CITY15_DTA" ///
+>     "$IRFA_CITY17_DTA" "$IRFA_DENSITY_DTA" {
+  2.     confirm file "`f'"
+  3. }
+
+. 
+. tempfile city13 city15_raw city15 city17 city_crosswalk conflict13 density
+
+. 
+. * 2013 contains a small set of internally conflicting household-city records.
+. use "$IRFA_CITY13_DTA", clear
+
+. keep hhid city county
+
+. drop if missing(hhid)
+(0 observations deleted)
+
+. bysort hhid city: gen byte __city_first = _n == 1 & city != ""
+
+. bysort hhid: egen int __city_levels = total(__city_first)
+
+. bysort hhid county: gen byte __county_first = _n == 1 & county != ""
+
+. bysort hhid: egen int __county_levels = total(__county_first)
+
+. gen byte geo_conflict_2013 = __city_levels > 1 | __county_levels > 1
+
+. egen byte __hh_tag = tag(hhid)
+
+. quietly count if geo_conflict_2013 == 1 & __hh_tag == 1
+
+. assert r(N) == 19
+
+. preserve
+
+. keep if geo_conflict_2013 == 1 & __hh_tag == 1
+(105,230 observations deleted)
+
+. keep hhid geo_conflict_2013
+
+. gen int year = 2013
+
+. isid hhid year
+
+. save `conflict13'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000006.tmp saved as .dta format
+
+. restore
+
+. drop if geo_conflict_2013 == 1
+(38 observations deleted)
+
+. bysort hhid (city county): keep if _n == 1
+(15,930 observations deleted)
+
+. rename city city_raw
+
+. rename county county_raw
+
+. gen int year = 2013
+
+. keep hhid year city_raw county_raw
+
+. isid hhid year
+
+. save `city13'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp saved as .dta format
+
+. 
+. * 2015 city IDs use the generic household key retained in the analysis file.
+. use "$IRFA_CITY15_DTA", clear
+
+. keep hhid city county
+
+. isid hhid
+
+. rename hhid link_hhid_generic
+
+. rename city city_raw
+
+. rename county county_raw
+
+. save `city15_raw'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000002.tmp saved as .dta format
+
+. 
+. use "$IRFA_INPUT_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. keep if year == 2015
+(68,146 observations deleted)
+
+. keep hhid link_hhid_generic
+
+. isid hhid
+
+. isid link_hhid_generic
+
+. merge 1:1 link_hhid_generic using `city15_raw', gen(_merge_city15)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                            96
+        from master                        96  (_merge_city15==1)
+        from using                          0  (_merge_city15==2)
+
+    Matched                            37,193  (_merge_city15==3)
+    -----------------------------------------
+
+. quietly count if _merge_city15 == 3
+
+. assert r(N) == 37193
+
+. quietly count if _merge_city15 == 1
+
+. assert r(N) == 96
+
+. quietly count if _merge_city15 == 2
+
+. assert r(N) == 0
+
+. keep if _merge_city15 == 3
+(96 observations deleted)
+
+. drop _merge_city15 link_hhid_generic
+
+. gen int year = 2015
+
+. isid hhid year
+
+. save `city15'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000003.tmp saved as .dta format
+
+. 
+. use "$IRFA_CITY17_DTA", clear
+
+. keep hhid city county
+
+. isid hhid
+
+. rename city city_raw
+
+. rename county county_raw
+
+. gen int year = 2017
+
+. isid hhid year
+
+. save `city17'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000004.tmp saved as .dta format
+
+. 
+. use `city13', clear
+
+. append using `city15' `city17'
+
+. isid hhid year
+
+. gen str60 city_norm = ustrtrim(city_raw)
+
+. replace city_norm = ustrregexra(city_norm, "[[:space:]]+", "")
+(0 real changes made)
+
+. save `city_crosswalk'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000005.tmp saved as .dta format
+
+. 
+. * Normalize the separate 2017 density file with the same city key.
+. use "$IRFA_DENSITY_DTA", clear
+
+. rename city city_raw
+
+. gen str60 city_norm = ustrtrim(city_raw)
+
+. replace city_norm = ustrregexra(city_norm, "[[:space:]]+", "")
+(0 real changes made)
+
+. isid city_norm year
+
+. keep city_norm year pop_density
+
+. save `density'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000007.tmp saved as .dta format
+
+. 
+. use "$IRFA_INPUT_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. assert _N == $IRFA_EXPECTED_N
+
+. isid hhid year
+
+. merge 1:1 hhid year using `conflict13', gen(_merge_conflict)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                       105,416
+        from master                   105,416  (_merge_conflict==1)
+        from using                          0  (_merge_conflict==2)
+
+    Matched                                19  (_merge_conflict==3)
+    -----------------------------------------
+
+. drop if _merge_conflict == 2
+(0 observations deleted)
+
+. replace geo_conflict_2013 = 0 if missing(geo_conflict_2013)
+(105,416 real changes made)
+
+. drop _merge_conflict
+
+. 
+. merge 1:1 hhid year using `city_crosswalk', gen(_merge_city)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                        61,472
+        from master                       211  (_merge_city==1)
+        from using                     61,261  (_merge_city==2)
+
+    Matched                           105,224  (_merge_city==3)
+    -----------------------------------------
+
+. drop if _merge_city == 2
+(61,261 observations deleted)
+
+. gen byte city_name_matched = _merge_city == 3
+
+. drop _merge_city
+
+. assert _N == $IRFA_EXPECTED_N
+
+. isid hhid year
+
+. 
+. * Fill a missing city only when its wave-province-source key maps uniquely.
+. clonevar city_norm_direct = city_norm
+(211 missing values generated)
+
+. gen byte city_source_key_excluded = ///
+>     year == 2013 & province_id == 52 & city_id_source == "043"
+
+. bysort year province_id city_id_source city_norm: gen byte __source_first = ///
+>     _n == 1 & !missing(city_norm) & city_source_key_excluded == 0
+
+. bysort year province_id city_id_source: egen int __source_count = total(__source_first)
+
+. bysort year province_id city_id_source (city_norm): gen str60 __source_unique = ///
+>     city_norm[_N] if __source_count == 1
+(1,218 missing values generated)
+
+. gen byte city_norm_unique_fill = missing(city_norm) & ///
+>     !missing(__source_unique) & city_source_key_excluded == 0
+
+. replace city_norm = __source_unique if city_norm_unique_fill == 1
+(193 real changes made)
+
+. gen byte city_norm_unresolved = missing(city_norm)
+
+. 
+. quietly count if missing(city_norm_direct)
+
+. assert r(N) == 211
+
+. quietly count if city_norm_unique_fill == 1
+
+. assert r(N) == 193
+
+. quietly count if city_norm_unresolved == 1
+
+. assert r(N) == 18
+
+. 
+. egen long city_id_stable = group(city_norm)
+(18 missing values generated)
+
+. replace city_id_stable = . if missing(city_norm)
+(0 real changes made)
+
+. egen byte __city_tag = tag(city_id_stable) if sample_gift_observed_common == 1
+
+. quietly count if __city_tag == 1 & !missing(city_id_stable)
+
+. assert r(N) == $IRFA_STABLE_CITY_CLUSTERS
+
+. drop __city_tag
+
+. 
+. clonevar sample_head_age_valid = age_primary_valid
+(21 missing values generated)
+
+. gen byte sample_semantic_valid = !missing(city_id_stable) & sample_head_age_valid == 1
+
+. gen byte sample_submission_full_age = ///
+>     sample_gift_observed_common == 1 & !missing(city_id_stable)
+
+. gen byte sample_submission_primary = ///
+>     sample_gift_observed_common == 1 & sample_semantic_valid == 1
+
+. gen byte sample_submission_positive = ///
+>     sample_baseline_common == 1 & sample_semantic_valid == 1
+
+. 
+. quietly count if sample_submission_full_age == 1
+
+. assert r(N) == $IRFA_SUBMISSION_FULL_AGE_N
+
+. quietly count if sample_submission_primary == 1
+
+. assert r(N) == $IRFA_SUBMISSION_PRIMARY_N
+
+. quietly count if sample_submission_positive == 1
+
+. assert r(N) == $IRFA_POSITIVE_N
+
+. 
+. drop __source_first __source_count __source_unique
+
+. merge m:1 city_norm year using `density', gen(_merge_density)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                        73,416
+        from master                    73,277  (_merge_density==1)
+        from using                        139  (_merge_density==2)
+
+    Matched                            32,158  (_merge_density==3)
+    -----------------------------------------
+
+. drop if _merge_density == 2
+(139 observations deleted)
+
+. gen byte density_matched = _merge_density == 3
+
+. drop _merge_density
+
+. assert _N == $IRFA_EXPECTED_N
+
+. isid hhid year
+
+. 
+. label variable city_id_stable "Stable numeric city identifier"
+
+. label variable sample_submission_primary "Observed-Gift analysis sample"
+
+. label variable sample_submission_positive "Positive-Gift analysis sample"
+
+. compress
+  variable city_id_stable was long now int
+  variable pop_density was double now int
+  variable city_raw was str33 now str30
+  variable city_norm was str60 now str30
+  variable city_norm_direct was str60 now str30
+  (7,485,885 bytes saved)
+
+. save "$IRFA_INTERMEDIATE/irfa_geography_augmented.dta", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/data/intermediate/irfa_geography_augmented.dta saved
+
+. 
+. display "GEOGRAPHY_BUILD=PASS"
+GEOGRAPHY_BUILD=PASS
+
+. log close geography
+      name:  geography
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/20_build_geography.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:37
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+. 
+end of do-file
+
+. capture log close _all
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:37
+
+. do "$IRFA_PACKAGE_ROOT/code/linkage/30_build_variable_supplement.do"
+
+. * Reviewer replication note
+. * Purpose: construct requested trust, literacy, network, access, and safe-asset proxies.
+. * Inputs: separate CHFS household files and the rebuilt household-year authority DTA.
+. * Outputs: labeled supplemental-variable DTA used in Tables 7-10.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. capture log close _all
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:39
+
+. do "$IRFA_PACKAGE_ROOT/code/linkage/32_build_parent_party.do"
+
+. * Reviewer replication note
+. * Purpose: construct the parental-CCP-membership instrument from wave-specific CHFS household files.
+. * Inputs: package-contained 2013, 2015, and 2017 CHFS household DTA files.
+. * Outputs: household-year parent-party supplement, construction audit CSV, and a complete Stata log.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. capture log close parent_party_build
+
+. 
+. quietly do "config/01_paths.do"
+
+. log using "$IRFA_LOGS/32_build_parent_party.log", text replace name(parent_party_build)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  parent_party_build
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/32_build_parent_party.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:39
+
+. display "PARENT_PARTY_BUILD_START"
+PARENT_PARTY_BUILD_START
+
+. 
+. tempfile parent13 parent15 parent17
+
+. tempname audit_post
+
+. postfile `audit_post' int year long raw_n valid_n party_n nonparty_n missing_n ///
+>     int party_code str20 father_field str20 mother_field byte value_labels_present ///
+>     str80 questionnaire_file str12 questionnaire_pages str244 evidence_note ///
+>     using "$IRFA_EVIDENCE/parent_party_construction_audit.dta", replace
+
+. 
+. use "$IRFA_RAW_ROOT/chfs2013_hh_20191120_version14.dta", clear
+(CAPI2013 ind. level data)
+
+. assert _N == 28141
+
+. isid hhid_2013
+
+. assert inlist(a2033_1, 1, 2, 3) if !missing(a2033_1)
+
+. assert inlist(a2033_2, 1, 2, 3) if !missing(a2033_2)
+
+. local value_label_1 : value label a2033_1
+
+. local value_label_2 : value label a2033_2
+
+. local labels_present = (`"`value_label_1'"' != "" | `"`value_label_2'"' != "")
+
+. gen byte father_party = (a2033_1 == 1) if inlist(a2033_1, 1, 2, 3)
+(2,652 missing values generated)
+
+. gen byte mother_party = (a2033_2 == 1) if inlist(a2033_2, 1, 2, 3)
+(3,577 missing values generated)
+
+. gen byte parent_party = 1 if father_party == 1 | mother_party == 1
+(23,168 missing values generated)
+
+. replace parent_party = 0 if father_party == 0 & mother_party == 0
+(19,292 real changes made)
+
+. quietly count if !missing(parent_party)
+
+. local valid_n = r(N)
+
+. quietly count if parent_party == 1
+
+. local party_n = r(N)
+
+. quietly count if parent_party == 0
+
+. local nonparty_n = r(N)
+
+. local missing_n = _N - `valid_n'
+
+. post `audit_post' (2013) (_N) (`valid_n') (`party_n') (`nonparty_n') (`missing_n') ///
+>     (1) ("a2033_1") ("a2033_2") (`labels_present') ///
+>     ("2013年家庭金融调查问卷.pdf") ("PDF 19") ///
+>     ("A2033 columns identify father then mother; codes are 1 CCP, 2 other party, 3 general public. The English questionnaire conflicts by listing CCP as code 2; Chinese questionnaire and observed DTA support code 1.")
+
+. gen int year = 2013
+
+. rename hhid_2013 hhid
+
+. keep hhid year parent_party father_party mother_party
+
+. save `parent13'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp saved as .dta format
+
+. 
+. use "$IRFA_RAW_ROOT/chfs2015_hh_20191120_version14.dta", clear
+
+. assert _N == 37289
+
+. isid hhid_2015
+
+. assert inlist(a2033_1, 1, 2, 3, 4) if !missing(a2033_1)
+
+. assert inlist(a2033_2, 1, 2, 3, 4) if !missing(a2033_2)
+
+. local value_label_1 : value label a2033_1
+
+. local value_label_2 : value label a2033_2
+
+. local labels_present = (`"`value_label_1'"' != "" | `"`value_label_2'"' != "")
+
+. gen byte mother_party = (a2033_1 == 2) if inlist(a2033_1, 1, 2, 3, 4)
+(27,868 missing values generated)
+
+. gen byte father_party = (a2033_2 == 2) if inlist(a2033_2, 1, 2, 3, 4)
+(27,560 missing values generated)
+
+. gen byte parent_party = 1 if father_party == 1 | mother_party == 1
+(35,495 missing values generated)
+
+. replace parent_party = 0 if father_party == 0 & mother_party == 0
+(7,386 real changes made)
+
+. quietly count if !missing(parent_party)
+
+. local valid_n = r(N)
+
+. quietly count if parent_party == 1
+
+. local party_n = r(N)
+
+. quietly count if parent_party == 0
+
+. local nonparty_n = r(N)
+
+. local missing_n = _N - `valid_n'
+
+. post `audit_post' (2015) (_N) (`valid_n') (`party_n') (`nonparty_n') (`missing_n') ///
+>     (2) ("a2033_2") ("a2033_1") (`labels_present') ///
+>     ("2015年家庭金融调查问卷20161130.pdf") ("PDF 24-25") ///
+>     ("A2033_1 is mother and A2033_2 is father; codes are 1 Youth League, 2 CCP, 3 other party, 4 general public.")
+
+. gen int year = 2015
+
+. drop hhid
+
+. rename hhid_2015 hhid
+
+. keep hhid year parent_party father_party mother_party
+
+. save `parent15'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000002.tmp saved as .dta format
+
+. 
+. use "$IRFA_RAW_ROOT/chfs2017_hh_202206.dta", clear
+
+. assert _N == 40011
+
+. isid hhid_2017
+
+. assert inlist(a2033_1, 1, 2, 3, 4) if !missing(a2033_1)
+
+. assert inlist(a2033_2, 1, 2, 3, 4) if !missing(a2033_2)
+
+. local value_label_1 : value label a2033_1
+
+. local value_label_2 : value label a2033_2
+
+. local labels_present = (`"`value_label_1'"' != "" | `"`value_label_2'"' != "")
+
+. gen byte mother_party = (a2033_1 == 2) if inlist(a2033_1, 1, 2, 3, 4)
+(32,881 missing values generated)
+
+. gen byte father_party = (a2033_2 == 2) if inlist(a2033_2, 1, 2, 3, 4)
+(32,572 missing values generated)
+
+. gen byte parent_party = 1 if father_party == 1 | mother_party == 1
+(38,419 missing values generated)
+
+. replace parent_party = 0 if father_party == 0 & mother_party == 0
+(5,445 real changes made)
+
+. quietly count if !missing(parent_party)
+
+. local valid_n = r(N)
+
+. quietly count if parent_party == 1
+
+. local party_n = r(N)
+
+. quietly count if parent_party == 0
+
+. local nonparty_n = r(N)
+
+. local missing_n = _N - `valid_n'
+
+. post `audit_post' (2017) (_N) (`valid_n') (`party_n') (`nonparty_n') (`missing_n') ///
+>     (2) ("a2033_2") ("a2033_1") (`labels_present') ///
+>     ("2017年中国家庭金融调查（CHFS）问卷.pdf") ("PDF 18") ///
+>     ("A2033_1 is mother and A2033_2 is father; codes are 1 Youth League, 2 CCP, 3 other party, 4 general public.")
+
+. gen int year = 2017
+
+. drop hhid
+
+. rename hhid_2017 hhid
+
+. keep hhid year parent_party father_party mother_party
+
+. save `parent17'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000003.tmp saved as .dta format
+
+. 
+. postclose `audit_post'
+
+. use `parent13', clear
+(CAPI2013 ind. level data)
+
+. append using `parent15' `parent17'
+
+. assert _N == 105441
+
+. isid hhid year
+
+. label variable parent_party "Parent CCP member"
+
+. label variable father_party "Father CCP member"
+
+. label variable mother_party "Mother CCP member"
+
+. sort year hhid
+
+. save "$IRFA_PARENT_PARTY", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/data/intermediate/irfa_parent_party_supplement.dta saved
+
+. 
+. use "$IRFA_EVIDENCE/parent_party_construction_audit.dta", clear
+
+. sort year
+
+. export delimited using "$IRFA_EVIDENCE/parent_party_construction_audit.csv", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/validation/parent_party_construction_audit.csv saved
+
+. assert value_labels_present == 0
+
+. assert party_code == 1 & father_field == "a2033_1" & mother_field == "a2033_2" if year == 2013
+
+. assert party_code == 2 & father_field == "a2033_2" & mother_field == "a2033_1" if inlist(year, 2015, 2017)
+
+. assert questionnaire_pages == "PDF 19" if year == 2013
+
+. assert questionnaire_pages == "PDF 24-25" if year == 2015
+
+. assert questionnaire_pages == "PDF 18" if year == 2017
+
+. 
+. display "PARENT_PARTY_VALUE_LABEL_LIMITATION=RAW_DTA_LABELS_ABSENT"
+PARENT_PARTY_VALUE_LABEL_LIMITATION=RAW_DTA_LABELS_ABSENT
+
+. display "PARENT_PARTY_QUESTIONNAIRE_CODING=PASS"
+PARENT_PARTY_QUESTIONNAIRE_CODING=PASS
+
+. display "PARENT_PARTY_BUILD=PASS"
+PARENT_PARTY_BUILD=PASS
+
+. display "PARENT_PARTY_MODULE=PASS"
+PARENT_PARTY_MODULE=PASS
+
+. log close parent_party_build
+      name:  parent_party_build
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/32_build_parent_party.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:41
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+. 
+end of do-file
+
+. capture log close _all
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:41
+
+. do "$IRFA_PACKAGE_ROOT/code/linkage/34_build_public_sector_household.do"
+
+. * Build household-level public-sector employment flags from all household members.
+. * Official questionnaire mapping:
+. * 2013: A3014=1/2 government/public institution; A3014=3 & A3016=1 state-owned.
+. * 2015: A3014a=1/2 government/public institution; A3014a=3 state-owned.
+. * 2017: A3106=1 government/public institution; A3106=2 state-owned.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. capture log close _all
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:46
+
+. do "$IRFA_PACKAGE_ROOT/code/analysis/40_prepare_analysis_data.do"
+
+. * Merge all analysis supplements and save the single final analysis data set.
+. version 18.0
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. 
+. quietly do "config/01_paths.do"
+
+. capture log close prepare
+
+. log using "$IRFA_LOGS/40_prepare_analysis_data.log", text replace name(prepare)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  prepare
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/40_prepare_analysis_data.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:46
+
+. 
+. tempfile local_controls
+
+. use "$IRFA_LOCAL_DTA", clear
+
+. assert _N == 900
+
+. rename city city_raw_local
+
+. gen str60 city_norm = ustrtrim(city_raw_local)
+
+. replace city_norm = ustrregexra(city_norm, "[[:space:]]+", "")
+(0 real changes made)
+
+. isid city_norm year
+
+. gen double local_gdp_log = ln(gdp) if gdp > 0 & !missing(gdp)
+(40 missing values generated)
+
+. rename finance_level local_finance_level
+
+. rename pop_density local_population_density
+
+. keep city_norm year local_gdp_log local_finance_level local_population_density
+
+. save `local_controls'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp saved as .dta format
+
+. 
+. use "$IRFA_INTERMEDIATE/irfa_geography_augmented.dta", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. assert _N == $IRFA_EXPECTED_N
+
+. isid hhid year
+
+. 
+. merge 1:1 hhid year using ///
+>     "$IRFA_INTERMEDIATE/irfa_household_year_variable_supplement.dta", ///
+>     assert(match) nogen
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                           105,435  
+    -----------------------------------------
+
+. 
+. merge 1:1 hhid year using "$IRFA_PARENT_PARTY", gen(_merge_parent)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             6
+        from master                         0  (_merge_parent==1)
+        from using                          6  (_merge_parent==2)
+
+    Matched                           105,435  (_merge_parent==3)
+    -----------------------------------------
+
+. quietly count if _merge_parent == 2
+
+. assert r(N) == 6
+
+. drop if _merge_parent == 2
+(6 observations deleted)
+
+. assert _N == $IRFA_EXPECTED_N
+
+. drop _merge_parent
+
+. 
+. merge 1:1 hhid year using ///
+>     "$IRFA_INTERMEDIATE/irfa_public_sector_household.dta", ///
+>     gen(_merge_sector)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             6
+        from master                         0  (_merge_sector==1)
+        from using                          6  (_merge_sector==2)
+
+    Matched                           105,435  (_merge_sector==3)
+    -----------------------------------------
+
+. quietly count if _merge_sector == 2
+
+. assert r(N) == 6
+
+. drop if _merge_sector == 2
+(6 observations deleted)
+
+. assert _N == $IRFA_EXPECTED_N
+
+. assert _merge_sector == 3
+
+. drop _merge_sector
+
+. 
+. rename pop_density population_density_2017
+
+. merge m:1 city_norm year using `local_controls', keep(master match) gen(_merge_local)
+(variable city_norm was str30, now str60 to accommodate using data's values)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                         5,491
+        from master                     5,491  (_merge_local==1)
+        from using                          0  (_merge_local==2)
+
+    Matched                            99,944  (_merge_local==3)
+    -----------------------------------------
+
+. gen byte local_controls_matched = _merge_local == 3
+
+. drop _merge_local
+
+. gen double population_density = local_population_density
+(43,432 missing values generated)
+
+. replace population_density = population_density_2017 ///
+>     if missing(population_density) & year == 2017
+(32,158 real changes made)
+
+. gen byte local_controls_complete = ///
+>     !missing(local_gdp_log, local_finance_level, population_density)
+
+. 
+. label variable stock_participation "Stock"
+
+. label variable risky_asset_participation "Risky Financial Assets"
+
+. label variable lottery_participation "Lottery"
+
+. label variable gift_exchange_ln "Gift"
+
+. label variable gift_given_ln "Gift expenditure"
+
+. label variable age "Age"
+
+. label variable age_squared "Age2"
+
+. label variable female "Female"
+
+. label variable household_assets_10k_w "Asset"
+
+. label variable household_income_pc_10k_w "Total income"
+
+. label variable family_size_w "Family member"
+
+. label variable rural_residence "Rural"
+
+. label variable party_member "Party member"
+
+. label variable rural_hukou "Hukou"
+
+. label variable education_code "Education"
+
+. label variable informal_credit_paper "Informal credit"
+
+. label variable trust_01 "Interpersonal trust"
+
+. label variable safe_assets "Safe Assets"
+
+. label variable financial_literacy "Financial literacy"
+
+. label variable network_size "Network size"
+
+. label variable formal_financial_access "Financial access"
+
+. label variable formal_bank_loan "Formal Bank Loan"
+
+. label variable institutional_trust "Institutional trust"
+
+. label variable local_gdp_log "GDP"
+
+. label variable local_finance_level "Finance level"
+
+. label variable population_density "Pop density"
+
+. label variable parent_party "Parent CPC member"
+
+. 
+. isid hhid year
+
+. assert _N == $IRFA_EXPECTED_N
+
+. quietly count if sample_submission_primary == 1
+
+. assert r(N) == $IRFA_SUBMISSION_PRIMARY_N
+
+. quietly count if sample_submission_positive == 1
+
+. assert r(N) == $IRFA_POSITIVE_N
+
+. quietly count if sample_submission_primary == 1 & local_controls_complete == 1
+
+. assert r(N) == 65190
+
+. 
+. compress
+  variable employment_unit_observed_members was int now byte
+  variable population_density was double now int
+  variable city_norm was str60 now str30
+  (3,901,095 bytes saved)
+
+. save "$IRFA_EMPIRICAL_AUGMENTED", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/work/data/intermediate/irfa_empirical_augmented.dta saved
+
+. save "$IRFA_FINAL_DTA", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/data/final/IRFA_analysis_sample.dta saved
+
+. 
+. display "ANALYSIS_DATA_BUILD=PASS"
+ANALYSIS_DATA_BUILD=PASS
+
+. log close prepare
+      name:  prepare
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/40_prepare_analysis_data.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:39:48
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+. 
+end of do-file
+
+. capture log close _all
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ opened on:  15 Aug 2026, 22:39:48
+
+. 
+. * Tables are estimated in the locked Table 1-8 order.
+. do "$IRFA_PACKAGE_ROOT/code/analysis/50_tables_01_05.do"
+
+. * Tables 1-5: definitions, descriptives, baseline, and robustness.
+. version 18.0
+
+. set more off
+
+. quietly do "config/01_paths.do"
+
+. adopath ++ "$IRFA_PACKAGE_ROOT/ado"
+  [1]              "C:/Users/86158/Desktop/新建文件夹/提交版/replication/ado"
+  [2]              "C:/Users/86158/Documents/ado"
+  [3]  (BASE)      "D:\Stata18\stata18\ado\base/"
+  [4]  (SITE)      "D:\Stata18\stata18\ado\site/"
+  [5]              "."
+  [6]  (PERSONAL)  "C:\Users\86158\ado\personal/"
+  [7]  (PLUS)      "C:\Users\86158\ado\plus/"
+  [8]  (OLDPLACE)  "c:\ado/"
+
+. 
+. global X "gift_exchange_ln"
+
+. global C "age age_squared female family_size_w party_member rural_hukou rural_residence household_assets_10k_w household_income_pc_10k_w"
+
+. global FE "i.province_id i.year"
+
+. global VCE "vce(cluster city_id_stable)"
+
+. 
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. isid hhid year
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 1. Variable definitions
+. * -----------------------------------------------------------------------------
+. file open t01 using "$IRFA_REPRODUCED/Table_01_Variable_Definitions.rtf", write replace
+
+. file write t01 "{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}}\fs20" _n
+
+. file write t01 "\b Table 1. Variable definitions\b0\par" _n
+
+. file write t01 "\trowd\trgaph80\clbrdrt\brdrw10\brdrs\clbrdrb\brdrw10\brdrs\cellx3000\clbrdrt\brdrw10\brdrs\clbrdrb\brdrw10\brdrs\cellx12500" _n
+
+. file write t01 "\pard\intbl\b Variable\cell Definition\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl\b Dependent variables\b0\cell\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Stock\cell A dummy variable that equals one if a household owns stocks, and zero otherwise\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Risky Financial Assets\cell A dummy variable that equals one if a household owns any stocks, funds, high-yield bonds, investment real estate, futures, or other derivatives and zero otherwis
+> e\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl\b Independent variables\b0\cell\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Gift\cell The logarithm of the sum of the gift of money exchanges and holiday gift exchange in the previous year\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Gift expenditure\cell The logarithm of the sum of the gift of money expense and holiday gift expense in the previous year\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl\b Other variables\b0\cell\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Age\cell Age of household head\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Age2\cell The squared term of the household head's age\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Female\cell A dummy variable that equals one if the head of household is female and zero otherwise\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Asset\cell The household's total assets (Unit: 10 thousands)\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Total income\cell The average income per person in a household (Unit: 10 thousands)\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Family member\cell Number of household members\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Rural\cell A dummy variable that equals one if the head of household lives in a rural area and zero otherwise\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Party member\cell A dummy variable that equals one if the head of household is a member of the Communist Party of China (CPC) and zero otherwise\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Hukou\cell A dummy variable that equals one if the head of household has a rural household registration (hukou) and zero otherwise\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Education\cell Household head's educational attainment. A categorical variable ranging from 0 to 9, where 0 indicates no formal education and 9 indicates a doctoral degree.\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Informal credit\cell A dummy variable that equals one if a household has borrowed from or lent money to friends and relatives in the past year\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Interpersonal trust\cell The normalized response to the question 'How much do you trust strangers?', with 0 meaning very distrustful and 1 meaning very trustful\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Financial literacy\cell A dummy equal to one if the household head can correctly answer a question about compound interest\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Network size\cell Local-kin network-size category from 0 to 3\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl GDP\cell The logarithm of annual gross domestic product of each province\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Finance level\cell The balance of deposits and loans of financial institutions at the end of the year / Regional GDP\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\cellx3000\cellx12500\pard\intbl Pop density\cell The number of inhabitants per square kilometer in the province\cell\row" _n
+
+. file write t01 "\trowd\trgaph80\clbrdrb\brdrw10\brdrs\cellx3000\clbrdrb\brdrw10\brdrs\cellx12500\pard\intbl Parent CCP member\cell A dummy variable that equals one if either observed parent is coded as a CPC member; equals zero only when both parent res
+> ponses are observed and neither is coded as a CPC member\cell\row" _n
+
+. file write t01 "}" _n
+
+. file close t01
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 2. Summary statistics, with variable-specific nonmissing N
+. * -----------------------------------------------------------------------------
+. keep if sample_submission_positive == 1
+(45,354 observations deleted)
+
+. local t02vars stock_participation risky_asset_participation gift_exchange_ln ///
+>     gift_given_ln age female household_assets_10k_w household_income_pc_10k_w ///
+>     family_size_w rural_residence party_member rural_hukou informal_credit_paper ///
+>     trust_01 local_gdp_log local_finance_level population_density parent_party
+
+. estpost summarize `t02vars'
+
+             |  e(count)   e(sum_w)    e(mean)     e(Var)      e(sd)     e(min)     e(max)     e(sum) 
+-------------+----------------------------------------------------------------------------------------
+stock_part~n |     60081      60081    .113863   .1008999   .3176474          0          1       6841 
+risky_asse~n |     60081      60081   .1411594   .1212355   .3481888          0          1       8481 
+gift_exch~ln |     60081      60081   8.031906   1.605076   1.266916   .0953102   13.54108   482564.9 
+gift_give~ln |     60081      60081   7.378716   4.218676   2.053942          0   13.12237   443320.6 
+         age |     60081      60081   52.13124   198.4634    14.0877         18        100    3132097 
+      female |     60081      60081   .2320035   .1781808   .4221147          0          1      13939 
+hous~s_10k_w |     60081      60081   102.7199    26082.5   161.5008        .17     928.92    6171512 
+hous~c_10k_w |     60081      60081   2.820486   12.36239   3.516019     -.0773     21.435   169457.6 
+family_siz~w |     60081      60081   3.289975   2.144874   1.464539          1          8     197665 
+rural_resi~e |     60081      60081   .2669396   .1956861   .4423642          0          1      16038 
+party_member |     60081      60081    .490388   .2499118   .4999118          0          1      29463 
+ rural_hukou |     60081      60081   .4731446   .2492829   .4992824          0          1      28427 
+informal_c~r |     60004      60004   .3086628   .2133936   .4619455          0          1      18521 
+    trust_01 |     44004      44004   .2988251   .0582881   .2414292          0          1    13149.5 
+local_gdp_~g |     57140      57140   11.01307   .3903423   .6247738     9.2193   13.05569   629286.6 
+local_fina~l |     57432      57432   3.384209   2.680899   1.637345   .7538583   12.50787   194361.9 
+population~y |     53877      53877   1973.221    5644357   2375.786          6      11602   1.06e+08 
+parent_party |     26249      26249     .22458   .1741504   .4173134          0          1       5895 
+
+. esttab using "$IRFA_REPRODUCED/Table_02_Summary_Statistics.rtf", replace rtf ///
+>     label nonumber nomtitle cells("count(fmt(0)) mean(fmt(3)) sd(fmt(3)) min(fmt(3)) max(fmt(3))") ///
+>     collabels("N" "Mean" "SD" "Min" "Max") order(`t02vars') ///
+>     title("Table 2. Summary statistics") ///
+>     addnotes("{\i Note:} This table reports the descriptive statistics for our main variables, including the mean, standard deviation (SD), minimum (Min), and maximum (Max) values. See Table 1 for variable definitions.")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_02_Summary_Statistics.rtf)
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 3. Zero-Gift versus positive-Gift comparison; no clustered standard errors
+. * -----------------------------------------------------------------------------
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. keep if sample_submission_primary == 1
+(31,889 observations deleted)
+
+. gen byte gift_high = gift_exchange_yuan > 0 if !missing(gift_exchange_yuan)
+
+. assert inlist(gift_high,0,1)
+
+. file open t03 using "$IRFA_REPRODUCED/Table_03_Gift_Group_Comparison.rtf", write replace
+
+. file write t03 "{\rtf1\ansi\deff0{\fonttbl{\f0 Times New Roman;}}\fs20" _n
+
+. file write t03 "\b Table 3. High gift exchange vs Low gift exchange\b0\par" _n
+
+. file write t03 "\trowd\trgaph80\clbrdrt\brdrw10\brdrs\cellx2700\clbrdrt\brdrw10\brdrs\cellx4100\clbrdrt\brdrw10\brdrs\cellx5500\clbrdrt\brdrw10\brdrs\cellx6900\clbrdrt\brdrw10\brdrs\cellx8300\clbrdrt\brdrw10\brdrs\cellx10000" _n
+
+. file write t03 "\pard\intbl\ql\b Variables\b0\cell\qc Low gift exchange\cell\cell High gift exchange\cell\cell\cell\row" _n
+
+. file write t03 "\trowd\trgaph80\clbrdrb\brdrw10\brdrs\cellx2700\clbrdrb\brdrw10\brdrs\cellx4100\clbrdrb\brdrw10\brdrs\cellx5500\clbrdrb\brdrw10\brdrs\cellx6900\clbrdrb\brdrw10\brdrs\cellx8300\clbrdrb\brdrw10\brdrs\cellx10000" _n
+
+. file write t03 "\pard\intbl\ql\cell\qc N\cell Mean\cell N\cell Mean\cell MeanDiff\cell\row" _n
+
+. local row : variable label stock_participation
+
+. quietly summarize stock_participation if gift_high == 0
+
+. local n0=r(N)
+
+. local m0=r(mean)
+
+. quietly summarize stock_participation if gift_high == 1
+
+. local n1=r(N)
+
+. local m1=r(mean)
+
+. quietly regress stock_participation gift_high
+
+. quietly lincom -gift_high
+
+. local d=r(estimate)
+
+. local p=r(p)
+
+. local stars=cond(`p'<=.01,"***",cond(`p'<=.05,"**",cond(`p'<=.10,"*","")))
+
+. local n0t : display %12.0f `n0'
+
+. local n1t : display %12.0f `n1'
+
+. local m0t : display %9.3f `m0'
+
+. local m1t : display %9.3f `m1'
+
+. local dt : display %9.3f `d'
+
+. file write t03 "\trowd\trgaph80\cellx2700\cellx4100\cellx5500\cellx6900\cellx8300\cellx10000" _n
+
+. file write t03 "\pard\intbl\ql `row'\cell\qc `n0t'\cell `m0t'\cell `n1t'\cell `m1t'\cell `dt'`stars'\cell\row" _n
+
+. 
+. local row : variable label risky_asset_participation
+
+. quietly summarize risky_asset_participation if gift_high == 0
+
+. local n0=r(N)
+
+. local m0=r(mean)
+
+. quietly summarize risky_asset_participation if gift_high == 1
+
+. local n1=r(N)
+
+. local m1=r(mean)
+
+. quietly regress risky_asset_participation gift_high
+
+. quietly lincom -gift_high
+
+. local d=r(estimate)
+
+. local p=r(p)
+
+. local stars=cond(`p'<=.01,"***",cond(`p'<=.05,"**",cond(`p'<=.10,"*","")))
+
+. local n0t : display %12.0f `n0'
+
+. local n1t : display %12.0f `n1'
+
+. local m0t : display %9.3f `m0'
+
+. local m1t : display %9.3f `m1'
+
+. local dt : display %9.3f `d'
+
+. file write t03 "\trowd\trgaph80\cellx2700\cellx4100\cellx5500\cellx6900\cellx8300\cellx10000" _n
+
+. file write t03 "\pard\intbl\ql `row'\cell\qc `n0t'\cell `m0t'\cell `n1t'\cell `m1t'\cell `dt'`stars'\cell\row" _n
+
+. 
+. local row : variable label informal_credit_paper
+
+. quietly summarize informal_credit_paper if gift_high == 0
+
+. local n0=r(N)
+
+. local m0=r(mean)
+
+. quietly summarize informal_credit_paper if gift_high == 1
+
+. local n1=r(N)
+
+. local m1=r(mean)
+
+. quietly regress informal_credit_paper gift_high
+
+. quietly lincom -gift_high
+
+. local d=r(estimate)
+
+. local p=r(p)
+
+. local stars=cond(`p'<=.01,"***",cond(`p'<=.05,"**",cond(`p'<=.10,"*","")))
+
+. local n0t : display %12.0f `n0'
+
+. local n1t : display %12.0f `n1'
+
+. local m0t : display %9.3f `m0'
+
+. local m1t : display %9.3f `m1'
+
+. local dt : display %9.3f `d'
+
+. file write t03 "\trowd\trgaph80\cellx2700\cellx4100\cellx5500\cellx6900\cellx8300\cellx10000" _n
+
+. file write t03 "\pard\intbl\ql `row'\cell\qc `n0t'\cell `m0t'\cell `n1t'\cell `m1t'\cell `dt'`stars'\cell\row" _n
+
+. 
+. local row : variable label trust_01
+
+. quietly summarize trust_01 if gift_high == 0
+
+. local n0=r(N)
+
+. local m0=r(mean)
+
+. quietly summarize trust_01 if gift_high == 1
+
+. local n1=r(N)
+
+. local m1=r(mean)
+
+. quietly regress trust_01 gift_high
+
+. quietly lincom -gift_high
+
+. local d=r(estimate)
+
+. local p=r(p)
+
+. local stars=cond(`p'<=.01,"***",cond(`p'<=.05,"**",cond(`p'<=.10,"*","")))
+
+. local n0t : display %12.0f `n0'
+
+. local n1t : display %12.0f `n1'
+
+. local m0t : display %9.3f `m0'
+
+. local m1t : display %9.3f `m1'
+
+. local dt : display %9.3f `d'
+
+. file write t03 "\trowd\trgaph80\clbrdrb\brdrw10\brdrs\cellx2700\clbrdrb\brdrw10\brdrs\cellx4100\clbrdrb\brdrw10\brdrs\cellx5500\clbrdrb\brdrw10\brdrs\cellx6900\clbrdrb\brdrw10\brdrs\cellx8300\clbrdrb\brdrw10\brdrs\cellx10000" _n
+
+. file write t03 "\pard\intbl\ql `row'\cell\qc `n0t'\cell `m0t'\cell `n1t'\cell `m1t'\cell `dt'`stars'\cell\row" _n
+
+. file write t03 "\pard\par {\i Note:} This table compares financial-market participation between low- and high- gift exchange groups within the survey year. ***, **, and * indicate significance at 1%, 5%, and 10%, respectively.\par}" _n
+
+. file close t03
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 4. Probit coefficients and average marginal effects
+. * -----------------------------------------------------------------------------
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. keep if sample_submission_positive == 1
+(45,354 observations deleted)
+
+. quietly probit stock_participation $X $C $FE, $VCE
+
+. local n=e(N)
+
+. local r2=e(r2_p)
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd scalar PseudoR2=`r2'
+
+added scalar:
+           e(PseudoR2) =  .2543642
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t4_stock
+
+. quietly margins, dydx($X $C) post
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd scalar PseudoR2=`r2'
+
+added scalar:
+           e(PseudoR2) =  .2543642
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t4_stock_ame
+
+. 
+. quietly probit risky_asset_participation $X $C $FE, $VCE
+
+. local n=e(N)
+
+. local r2=e(r2_p)
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd scalar PseudoR2=`r2'
+
+added scalar:
+           e(PseudoR2) =  .25198136
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t4_risky
+
+. quietly margins, dydx($X $C) post
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd scalar PseudoR2=`r2'
+
+added scalar:
+           e(PseudoR2) =  .25198136
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t4_risky_ame
+
+. 
+. esttab t4_stock t4_stock_ame t4_risky t4_risky_ame ///
+>     using "$IRFA_REPRODUCED/Table_04_Baseline.rtf", replace rtf label nogaps ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep($X $C _cons) order($X $C _cons) coeflabels(_cons "Constant") ///
+>     mtitles("Stock" "Marginal Effects" "Risky Financial Assets" "Marginal Effects") ///
+>     stats(ProvinceFE YearFE PseudoR2 Observations, fmt(0 0 4 0) ///
+>         labels("Province FE" "Year FE" "Pseudo R2" "Observations")) ///
+>     title("Table 4. Gift exchange and financial-market participation") ///
+>     addnotes("{\i Note:} This table presents the main regression results of the relationship between gift exchange and risky financial investment. Columns (1) and (3) report Probit coefficients; columns (2) and (4) report average marginal effects for Gi
+> ft and all controls. Standard errors are in parentheses. ***, **, and * indicate significance at 1%, 5%, and 10%, respectively. See Table 1 for variable definitions.")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_04_Baseline.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 5, Panel A. Alternative variables
+. * -----------------------------------------------------------------------------
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. quietly probit stock_participation $X $C $FE if sample_submission_primary==1, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .26044246
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  73546
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5a_s0
+
+. quietly probit risky_asset_participation $X $C $FE if sample_submission_primary==1, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .2578465
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  73546
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5a_r0
+
+. quietly probit stock_participation gift_given_ln $C $FE if sample_submission_positive==1, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25363131
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5a_sg
+
+. quietly probit risky_asset_participation gift_given_ln $C $FE if sample_submission_positive==1, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25123249
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5a_rg
+
+. esttab t5a_s0 t5a_r0 t5a_sg t5a_rg ///
+>     using "$IRFA_REPRODUCED/Table_05_Robustness.rtf", replace rtf nogaps compress ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) keep(gift_exchange_ln gift_given_ln) ///
+>     coeflabels(gift_exchange_ln "Gift" gift_given_ln "Gift expenditure") ///
+>     mtitles("Stock" "Risky Financial Assets" "Stock" "Risky Financial Assets") ///
+>     stats(Controls ProvinceFE YearFE PseudoR2 Observations, fmt(0 0 0 4 0) ///
+>         labels("Controls" "Province FE" "Year FE" "Pseudo R2" "Observations")) ///
+>     title("Table 5. Robustness tests: Panel A. Alternative variables")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_05_Robustness.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 5, Panel B. Alternative specifications
+. * -----------------------------------------------------------------------------
+. keep if sample_submission_positive == 1
+(45,354 observations deleted)
+
+. egen long household_cluster = group(link_hhid_generic)
+
+. quietly logit stock_participation $X $C $FE, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25186469
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "No"
+
+added macro:
+             e(CityFE) : "No"
+
+. estimates store t5b_sl
+
+. quietly regress stock_participation $X $C $FE, $VCE
+
+. estadd scalar AdjustedR2=e(r2_a)
+
+added scalar:
+         e(AdjustedR2) =  .18238216
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "No"
+
+added macro:
+             e(CityFE) : "No"
+
+. estimates store t5b_so
+
+. quietly probit stock_participation $X $C $FE, vce(cluster household_cluster)
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .2543642
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "No"
+
+added macro:
+             e(CityFE) : "No"
+
+. estimates store t5b_sh
+
+. quietly probit stock_participation $X local_gdp_log local_finance_level population_density $C i.city_id_stable i.year, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25929181
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  50441
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "No"
+
+added macro:
+         e(ProvinceFE) : "No"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "Yes"
+
+added macro:
+             e(CityFE) : "Yes"
+
+. estimates store t5b_sc
+
+. 
+. quietly logit risky_asset_participation $X $C $FE, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25036763
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "No"
+
+added macro:
+             e(CityFE) : "No"
+
+. estimates store t5b_rl
+
+. quietly regress risky_asset_participation $X $C $FE, $VCE
+
+. estadd scalar AdjustedR2=e(r2_a)
+
+added scalar:
+         e(AdjustedR2) =  .20205127
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "No"
+
+added macro:
+             e(CityFE) : "No"
+
+. estimates store t5b_ro
+
+. quietly probit risky_asset_participation $X $C $FE, vce(cluster household_cluster)
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25198136
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "No"
+
+added macro:
+             e(CityFE) : "No"
+
+. estimates store t5b_rh
+
+. quietly probit risky_asset_participation $X local_gdp_log local_finance_level population_density $C i.city_id_stable i.year, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25841455
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  51849
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "No"
+
+added macro:
+         e(ProvinceFE) : "No"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local CityFE "Yes"
+
+added macro:
+             e(CityFE) : "Yes"
+
+. estimates store t5b_rc
+
+. esttab t5b_sl t5b_so t5b_sh t5b_sc t5b_rl t5b_ro t5b_rh t5b_rc ///
+>     using "$IRFA_REPRODUCED/Table_05_Robustness.rtf", append rtf nogaps compress ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep(gift_exchange_ln local_gdp_log local_finance_level population_density) ///
+>     coeflabels(gift_exchange_ln "Gift" local_gdp_log "GDP" ///
+>         local_finance_level "Financial level" population_density "Population density") ///
+>     mtitles("Logit" "LPM" "Household cluster" "City FE" ///
+>         "Logit" "LPM" "Household cluster" "City FE") ///
+>     stats(Controls ProvinceFE YearFE CityFE PseudoR2 AdjustedR2 Observations, ///
+>         fmt(0 0 0 0 4 4 0) labels("Controls" "Province FE" "Year FE" "City FE" ///
+>         "Pseudo R2" "Adjusted R2" "Observations")) ///
+>     title("Panel B. Alternative specifications")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_05_Robustness.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 5, Panel C. Alternative explanations on a common sample
+. * -----------------------------------------------------------------------------
+. gen byte common_proxy = !missing(network_size, financial_literacy)
+
+. quietly probit stock_participation $X network_size $C $FE if common_proxy, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .247532
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  35759
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5c_sn
+
+. quietly probit stock_participation $X financial_literacy $C $FE if common_proxy, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .25152632
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  35759
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5c_sl
+
+. quietly probit risky_asset_participation $X network_size $C $FE if common_proxy, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .24147891
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  35759
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5c_rn
+
+. quietly probit risky_asset_participation $X financial_literacy $C $FE if common_proxy, $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .24516702
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  35759
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t5c_rl
+
+. esttab t5c_sn t5c_sl t5c_rn t5c_rl ///
+>     using "$IRFA_REPRODUCED/Table_05_Robustness.rtf", append rtf nogaps compress label ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep(gift_exchange_ln network_size financial_literacy) ///
+>     coeflabels(gift_exchange_ln "Gift" network_size "Network size" ///
+>         financial_literacy "Financial literacy") ///
+>     mtitles("Stock" "Stock" "Risky Financial Assets" "Risky Financial Assets") ///
+>     stats(Controls ProvinceFE YearFE PseudoR2 Observations, fmt(0 0 0 4 0) ///
+>         labels("Controls" "Province FE" "Year FE" "Pseudo R2" "Observations")) ///
+>     title("Panel C. Alternative explanations") ///
+>     addnotes("{\i Note:} This table presents the results of robust checks. Panel A shows the results using alternative samples and alternative measures of gift exchange and risky financial investment. Panel B reports the results using alternative specif
+> ications, including alternative models, clustering, and controlling for local economic conditions and city fixed effects. Panel C shows the results of alternative explanations. Standard errors are in parentheses. ***, **, and * indicate significance at 
+> 1%, 5%, and 10%, respectively. See Table 1 for variable definitions.")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_05_Robustness.rtf)
+
+. estimates clear
+
+. 
+. display "TABLES_01_05=PASS"
+TABLES_01_05=PASS
+
+. 
+end of do-file
+
+. do "$IRFA_PACKAGE_ROOT/code/analysis/55_table_06_iv.do"
+
+. * Table 6: parent-party IV, exclusion diagnostics, and Lewbel.
+. version 18.0
+
+. set more off
+
+. quietly do "config/01_paths.do"
+
+. adopath ++ "$IRFA_PACKAGE_ROOT/ado"
+  [1]              "C:/Users/86158/Desktop/新建文件夹/提交版/replication/ado"
+  [2]              "C:/Users/86158/Documents/ado"
+  [3]  (BASE)      "D:\Stata18\stata18\ado\base/"
+  [4]  (SITE)      "D:\Stata18\stata18\ado\site/"
+  [5]              "."
+  [6]  (PERSONAL)  "C:\Users\86158\ado\personal/"
+  [7]  (PLUS)      "C:\Users\86158\ado\plus/"
+  [8]  (OLDPLACE)  "c:\ado/"
+
+. 
+. * Remove obsolete observable-path diagnostics from earlier runs.
+. capture erase "$IRFA_EVIDENCE/table06_observable_paths.dta"
+
+. capture erase "$IRFA_EVIDENCE/table06_observable_paths.csv"
+
+. 
+. global X "gift_exchange_ln"
+
+. global Z "parent_party"
+
+. global C "age age_squared female family_size_w party_member rural_hukou rural_residence household_assets_10k_w household_income_pc_10k_w"
+
+. global FE "i.province_id i.year"
+
+. global VCE "vce(cluster city_id_stable)"
+
+. 
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. keep if sample_submission_positive == 1 & !missing(parent_party)
+(79,186 observations deleted)
+
+. assert _N == 26249
+
+. assert gift_exchange_yuan > 0 & !missing(gift_exchange_yuan)
+
+. tempfile ivsample
+
+. save `ivsample'
+file C:\Users\86158\AppData\Local\Temp\ST_79e0_000001.tmp saved as .dta format
+
+. 
+. tempname diag
+
+. postfile `diag' str24 panel str32 specification str8 outcome long observations ///
+>     double coefficient clustered_se p_value kp_f effective_f effective_f_cv10 ar_p ///
+>     bp_chi2 bp_p ///
+>     using "$IRFA_EVIDENCE/table06_iv_diagnostics.dta", replace
+
+. 
+. * -----------------------------------------------------------------------------
+. * Panel A. First stage and baseline 2SLS
+. * -----------------------------------------------------------------------------
+. local stock_yogo_cv10 = 16.38
+
+. quietly regress $X $Z $C $FE, $VCE
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  26249
+
+. estadd scalar AdjustedR2=e(r2_a)
+
+added scalar:
+         e(AdjustedR2) =  .17222212
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store iv_first
+
+. 
+. quietly ivreg2 stock_participation $C $FE ($X=$Z), ///
+>     cluster(city_id_stable) small endog($X)
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. quietly test $X
+
+. local p=r(p)
+
+. local b=_b[$X]
+
+. local se=_se[$X]
+
+. local kp=e(widstat)
+
+. local n=e(N)
+
+. estimates store __iv_stock
+
+. quietly weakivtest
+
+. local eff=r(F_eff)
+
+. local cv10=r(c_TSLS_10)
+
+. assert `eff' > `cv10'
+
+. local panelA_kp=`kp'
+
+. local panelA_eff=`eff'
+
+. local panelA_cv10=`cv10'
+
+. local panelA_eff_text = strtrim(string(`panelA_eff', "%9.3f"))
+
+. local panelA_cv10_text = strtrim(string(`panelA_cv10', "%9.3f"))
+
+. quietly regress stock_participation $Z $C $FE, $VCE
+
+. quietly test $Z
+
+. local arp=r(p)
+
+. estimates restore __iv_stock
+(results __iv_stock are active now)
+
+. estadd scalar ARp=`arp'
+
+added scalar:
+                e(ARp) =  1.384e-06
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  26249
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store iv_stock
+
+. estimates drop __iv_stock
+
+. post `diag' ("A") ("baseline") ("Stock") (`n') (`b') (`se') (`p') (`kp') (`eff') (`cv10') (`arp') (.) (.)
+
+. 
+. quietly ivreg2 risky_asset_participation $C $FE ($X=$Z), ///
+>     cluster(city_id_stable) small endog($X)
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. quietly test $X
+
+. local p=r(p)
+
+. local b=_b[$X]
+
+. local se=_se[$X]
+
+. local kp=e(widstat)
+
+. local n=e(N)
+
+. estimates store __iv_risky
+
+. quietly weakivtest
+
+. local eff=r(F_eff)
+
+. local cv10=r(c_TSLS_10)
+
+. assert `eff' > `cv10'
+
+. quietly regress risky_asset_participation $Z $C $FE, $VCE
+
+. quietly test $Z
+
+. local arp=r(p)
+
+. estimates restore __iv_risky
+(results __iv_risky are active now)
+
+. estadd scalar ARp=`arp'
+
+added scalar:
+                e(ARp) =  1.297e-09
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  26249
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store iv_risky
+
+. estimates drop __iv_risky
+
+. post `diag' ("A") ("baseline") ("Risky") (`n') (`b') (`se') (`p') (`kp') (`eff') (`cv10') (`arp') (.) (.)
+
+. 
+. estimates restore iv_first
+(results iv_first are active now)
+
+. estadd scalar KPF=`panelA_kp'
+
+added scalar:
+                e(KPF) =  25.113249
+
+. estadd scalar StockYogoCV10=`stock_yogo_cv10'
+
+added scalar:
+      e(StockYogoCV10) =  16.38
+
+. estadd scalar EffectiveF=`panelA_eff'
+
+added scalar:
+         e(EffectiveF) =  25.25745
+
+. estadd scalar EffectiveFCV10=`panelA_cv10'
+
+added scalar:
+     e(EffectiveFCV10) =  23.10851
+
+. estimates store iv_first_report
+
+. 
+. esttab iv_first_report iv_stock iv_risky ///
+>     using "$IRFA_REPRODUCED/Table_06_Instrumental_Variables.rtf", replace rtf label nogaps ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) keep(parent_party gift_exchange_ln) ///
+>     coeflabels(parent_party "Parent CPC member" gift_exchange_ln "Gift") ///
+>     mtitles("First stage" "2SLS: Stock" "2SLS: Risky Financial Assets") ///
+>     stats(Controls ProvinceFE YearFE AdjustedR2 KPF StockYogoCV10 EffectiveF EffectiveFCV10 ARp Observations, ///
+>         fmt(0 0 0 4 3 2 3 3 6 0) labels("Controls" "Province FE" "Year FE" ///
+>         "Adjusted R2" "Kleibergen-Paap rk Wald F" "Stock-Yogo 10% critical value" "Effective F" ///
+>         "Effective F 10% critical value" "Anderson-Rubin p-value" "Observations")) ///
+>     title("Table 6. IV regression results: Panel A. IV regression results")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_06_Instrumental_Variables.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Panel B. Add Education and Financial literacy
+. * -----------------------------------------------------------------------------
+. local add "education_code financial_literacy"
+
+. quietly ivreg2 stock_participation $C `add' $FE ($X=$Z), ///
+>     cluster(city_id_stable) small endog($X)
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. quietly test $X
+
+. local p=r(p)
+
+. local b=_b[$X]
+
+. local se=_se[$X]
+
+. local kp=e(widstat)
+
+. local n=e(N)
+
+. estimates store __aug_stock
+
+. local eff=.
+
+. local cv10=.
+
+. local arp=.
+
+. estimates restore __aug_stock
+(results __aug_stock are active now)
+
+. estadd scalar KPF=`kp'
+
+added scalar:
+                e(KPF) =  5.7534596
+
+. estadd scalar EffectiveF=`eff'
+
+added scalar:
+         e(EffectiveF) =  .
+
+. estadd scalar ARp=`arp'
+
+added scalar:
+                e(ARp) =  .
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  22051
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store aug_stock
+
+. estimates drop __aug_stock
+
+. post `diag' ("B") ("augmented_controls") ("Stock") (`n') (`b') (`se') (`p') (`kp') (`eff') (`cv10') (`arp') (.) (.)
+
+. 
+. quietly ivreg2 risky_asset_participation $C `add' $FE ($X=$Z), ///
+>     cluster(city_id_stable) small endog($X)
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. quietly test $X
+
+. local p=r(p)
+
+. local b=_b[$X]
+
+. local se=_se[$X]
+
+. local kp=e(widstat)
+
+. local n=e(N)
+
+. estimates store __aug_risky
+
+. local eff=.
+
+. local cv10=.
+
+. local arp=.
+
+. estimates restore __aug_risky
+(results __aug_risky are active now)
+
+. estadd scalar KPF=`kp'
+
+added scalar:
+                e(KPF) =  5.7534596
+
+. estadd scalar EffectiveF=`eff'
+
+added scalar:
+         e(EffectiveF) =  .
+
+. estadd scalar ARp=`arp'
+
+added scalar:
+                e(ARp) =  .
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  22051
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store aug_risky
+
+. estimates drop __aug_risky
+
+. post `diag' ("B") ("augmented_controls") ("Risky") (`n') (`b') (`se') (`p') (`kp') (`eff') (`cv10') (`arp') (.) (.)
+
+. 
+. esttab aug_stock aug_risky using "$IRFA_REPRODUCED/Table_06_Instrumental_Variables.rtf", ///
+>     append rtf label nogaps cells(b(star fmt(4)) se(par fmt(4))) ///
+>     collabels(none) eqlabels(none) star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep(gift_exchange_ln education_code financial_literacy) ///
+>     order(gift_exchange_ln education_code financial_literacy) ///
+>     coeflabels(gift_exchange_ln "Gift" education_code "Education" ///
+>         financial_literacy "Financial literacy") ///
+>     mtitles("2SLS: Stock" "2SLS: Risky Financial Assets") ///
+>     stats(Controls ProvinceFE YearFE Observations, ///
+>         fmt(0 0 0 0) labels("Controls" "Province FE" "Year FE" "Observations")) ///
+>     title("Panel B. Additional controls based on IV regression")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_06_Instrumental_Variables.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Panel C. Exclude government and SOE households
+. * -----------------------------------------------------------------------------
+. quietly ivreg2 stock_participation $C $FE ($X=$Z) if public_sector_broad==0, ///
+>     cluster(city_id_stable) small endog($X)
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. quietly test $X
+
+. local p=r(p)
+
+. local b=_b[$X]
+
+. local se=_se[$X]
+
+. local kp=e(widstat)
+
+. local n=e(N)
+
+. estimates store __b_stock
+
+. local eff=.
+
+. local cv10=.
+
+. local arp=.
+
+. estimates restore __b_stock
+(results __b_stock are active now)
+
+. estadd scalar KPF=`kp'
+
+added scalar:
+                e(KPF) =  22.81606
+
+. estadd scalar EffectiveF=`eff'
+
+added scalar:
+         e(EffectiveF) =  .
+
+. estadd scalar ARp=`arp'
+
+added scalar:
+                e(ARp) =  .
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  18961
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store b_stock
+
+. estimates drop __b_stock
+
+. post `diag' ("C") ("exclude_government_soe") ("Stock") (`n') (`b') (`se') (`p') (`kp') (`eff') (`cv10') (`arp') (.) (.)
+
+. 
+. quietly ivreg2 risky_asset_participation $C $FE ($X=$Z) if public_sector_broad==0, ///
+>     cluster(city_id_stable) small endog($X)
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. quietly test $X
+
+. local p=r(p)
+
+. local b=_b[$X]
+
+. local se=_se[$X]
+
+. local kp=e(widstat)
+
+. local n=e(N)
+
+. estimates store __b_risky
+
+. local eff=.
+
+. local cv10=.
+
+. local arp=.
+
+. estimates restore __b_risky
+(results __b_risky are active now)
+
+. estadd scalar KPF=`kp'
+
+added scalar:
+                e(KPF) =  22.81606
+
+. estadd scalar EffectiveF=`eff'
+
+added scalar:
+         e(EffectiveF) =  .
+
+. estadd scalar ARp=`arp'
+
+added scalar:
+                e(ARp) =  .
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  18961
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store b_risky
+
+. estimates drop __b_risky
+
+. post `diag' ("C") ("exclude_government_soe") ("Risky") (`n') (`b') (`se') (`p') (`kp') (`eff') (`cv10') (`arp') (.) (.)
+
+. 
+. esttab b_stock b_risky ///
+>     using "$IRFA_REPRODUCED/Table_06_Instrumental_Variables.rtf", append rtf label nogaps ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) keep(gift_exchange_ln) ///
+>     coeflabels(gift_exchange_ln "Gift") ///
+>     mtitles("Stock" "Risky Financial Assets") ///
+>     stats(Controls ProvinceFE YearFE Observations, ///
+>         fmt(0 0 0 0) labels("Controls" "Province FE" "Year FE" "Observations")) ///
+>     title("Panel C. Exclude households with political capital channels")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_06_Instrumental_Variables.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Panel D. Lewbel's 2SLS estimation results
+. * -----------------------------------------------------------------------------
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. keep if sample_submission_positive == 1
+(45,354 observations deleted)
+
+. generate double gx=asinh(gift_exchange_yuan/10000)
+
+. local source_controls "$C"
+
+. local short_controls ""
+
+. local j=0
+
+. foreach v of local source_controls {
+  2.     local ++j
+  3.     clonevar c`j'=`v'
+  4.     local short_controls "`short_controls' c`j'"
+  5. }
+
+. quietly tabulate province_id, generate(pf_)
+
+. quietly tabulate year, generate(yf_)
+
+. drop pf_1 yf_1
+
+. unab lewbel_fe : pf_* yf_*
+
+. local lewbel_exog "`short_controls' `lewbel_fe'"
+
+. local generated : word count `lewbel_exog'
+
+. assert `generated' == 39
+
+. 
+. quietly regress gx `lewbel_exog'
+
+. quietly estat hettest, rhs iid
+
+. local bp_chi2=r(chi2)
+
+. local bp_p=r(p)
+
+. local bp_stars ""
+
+. if `bp_p' < 0.10 local bp_stars "*"
+
+. if `bp_p' < 0.05 local bp_stars "**"
+
+. if `bp_p' < 0.01 local bp_stars "***"
+
+. local bp_display = strtrim(string(`bp_chi2', "%9.3f")) + "`bp_stars'"
+
+. 
+. quietly ivreg2h stock_participation `lewbel_exog' (gx=), ///
+>     cluster(city_id_stable) small robust
+Error: estimated covariance matrix of moment conditions not of full rank;
+       overidentification statistic not reported, and standard errors and
+       model tests should be interpreted with caution.
+Possible causes:
+       singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+ option may address problem.
+Error: estimated covariance matrix of moment conditions not of full rank;
+       overidentification statistic not reported, and standard errors and
+       model tests should be interpreted with caution.
+Possible causes:
+       singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+ option may address problem.
+
+. quietly test gx
+
+. local p=r(p)
+
+. local b=_b[gx]
+
+. local se=_se[gx]
+
+. local n=e(N)
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local BPTest "`bp_display'"
+
+added macro:
+             e(BPTest) : "3990.429***"
+
+. estimates store lewbel_stock
+
+. post `diag' ("D") ("ivreg2h_ihs") ("Stock") (`n') (`b') (`se') (`p') (.) (.) (.) (.) (`bp_chi2') (`bp_p')
+
+. 
+. quietly ivreg2h risky_asset_participation `lewbel_exog' (gx=), ///
+>     cluster(city_id_stable) small robust
+Error: estimated covariance matrix of moment conditions not of full rank;
+       overidentification statistic not reported, and standard errors and
+       model tests should be interpreted with caution.
+Possible causes:
+       singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+ option may address problem.
+Error: estimated covariance matrix of moment conditions not of full rank;
+       overidentification statistic not reported, and standard errors and
+       model tests should be interpreted with caution.
+Possible causes:
+       singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+ option may address problem.
+
+. quietly test gx
+
+. local p=r(p)
+
+. local b=_b[gx]
+
+. local se=_se[gx]
+
+. local n=e(N)
+
+. estadd scalar Observations=`n'
+
+added scalar:
+       e(Observations) =  60081
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estadd local BPTest "`bp_display'"
+
+added macro:
+             e(BPTest) : "3990.429***"
+
+. estimates store lewbel_risky
+
+. post `diag' ("D") ("ivreg2h_ihs") ("Risky") (`n') (`b') (`se') (`p') (.) (.) (.) (.) (`bp_chi2') (`bp_p')
+
+. postclose `diag'
+
+. 
+. esttab lewbel_stock lewbel_risky ///
+>     using "$IRFA_REPRODUCED/Table_06_Instrumental_Variables.rtf", append rtf label nogaps ///
+>     cells(b(star fmt(4)) se(par fmt(4))) collabels(none) eqlabels(none) ///
+>     star(* 0.10 ** 0.05 *** 0.01) keep(gx) ///
+>     coeflabels(gx "Gift") ///
+>     mtitles("Stock" "Risky Financial Assets") ///
+>     stats(Controls ProvinceFE YearFE BPTest Observations, fmt(0 0 0 0 0) ///
+>         labels("Controls" "Province FE" "Year FE" ///
+>         "Breusch-Pagan test for heteroskedasticity" "Observations")) ///
+>     title("Panel D. Lewbel's 2SLS estimation results") ///
+>     addnotes("{\i Note:} This table reports IV regression results. Panel A reports the IV estimation results using parental CCP membership. Panel B further controls for households{\u8217?} education and financial literacy. Panel C excludes households wh
+> ose members are employed in government or state-owned enterprises. Panel D conducts the Lewbel (2012) IV approach. Standard errors are in parentheses. ***, **, and * indicate significance at 1%, 5%, and 10%, respectively. See Table 1 for variable defini
+> tions.")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_06_Instrumental_Variables.rtf)
+
+. estimates clear
+
+. 
+. use "$IRFA_EVIDENCE/table06_iv_diagnostics.dta", clear
+
+. sort panel specification outcome
+
+. export delimited using "$IRFA_EVIDENCE/table06_iv_diagnostics.csv", replace
+file C:/Users/86158/Desktop/新建文件夹/提交版/replication/validation/table06_iv_diagnostics.csv saved
+
+. 
+. display "TABLE_06=PASS"
+TABLE_06=PASS
+
+. 
+end of do-file
+
+. do "$IRFA_PACKAGE_ROOT/code/analysis/58_tables_07_08.do"
+
+. * Tables 7-8: channel-consistent associations and heterogeneity.
+. version 18.0
+
+. set more off
+
+. quietly do "config/01_paths.do"
+
+. adopath ++ "$IRFA_PACKAGE_ROOT/ado"
+  [1]              "C:/Users/86158/Desktop/新建文件夹/提交版/replication/ado"
+  [2]              "C:/Users/86158/Documents/ado"
+  [3]  (BASE)      "D:\Stata18\stata18\ado\base/"
+  [4]  (SITE)      "D:\Stata18\stata18\ado\site/"
+  [5]              "."
+  [6]  (PERSONAL)  "C:\Users\86158\ado\personal/"
+  [7]  (PLUS)      "C:\Users\86158\ado\plus/"
+  [8]  (OLDPLACE)  "c:\ado/"
+
+. 
+. global X "gift_exchange_ln"
+
+. global C "age age_squared female family_size_w party_member rural_hukou rural_residence household_assets_10k_w household_income_pc_10k_w"
+
+. global FE "i.province_id i.year"
+
+. global VCE "vce(cluster city_id_stable)"
+
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 7. Informal credit and interpersonal trust
+. * -----------------------------------------------------------------------------
+. quietly probit informal_credit_paper $X $C $FE ///
+>     if sample_submission_positive==1 & !missing(informal_credit_paper), $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .08753657
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  60004
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t7_credit
+
+. 
+. quietly probit trust_binary $X $C $FE ///
+>     if sample_submission_positive==1 & !missing(trust_binary), $VCE
+
+. estadd scalar PseudoR2=e(r2_p)
+
+added scalar:
+           e(PseudoR2) =  .06173034
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  44004
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t7_trust
+
+. 
+. quietly ivreg2 informal_credit_paper $C $FE ($X=parent_party) ///
+>     if sample_submission_positive==1 & !missing(parent_party,informal_credit_paper), ///
+>     cluster(city_id_stable) small
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  26226
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t7_credit_iv
+
+. 
+. quietly ivreg2 trust_binary $C $FE ($X=parent_party) ///
+>     if sample_submission_positive==1 & !missing(parent_party,trust_binary), ///
+>     cluster(city_id_stable) small
+Warning: estimated covariance matrix of moment conditions not of full rank.
+         overidentification statistic not reported, and standard errors and
+         model tests should be interpreted with caution.
+Possible causes:
+         number of clusters insufficient to calculate robust covariance matrix
+         singleton dummy variable (dummy with one 1 and N-1 0s or vice versa)
+partial option may address problem.
+
+. estadd scalar Observations=e(N)
+
+added scalar:
+       e(Observations) =  17016
+
+. estadd local Controls "Yes"
+
+added macro:
+           e(Controls) : "Yes"
+
+. estadd local ProvinceFE "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+. estadd local YearFE "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates store t7_trust_iv
+
+. 
+. esttab t7_credit t7_trust t7_credit_iv t7_trust_iv ///
+>     using "$IRFA_REPRODUCED/Table_07_Mechanisms.rtf", ///
+>     replace rtf label nogaps cells(b(star fmt(4)) se(par fmt(4))) ///
+>     collabels(none) eqlabels(none) star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep(gift_exchange_ln) coeflabels(gift_exchange_ln "Gift") ///
+>     mtitles("Probit: Informal credit" "Probit: Interpersonal trust" ///
+>         "2SLS: Informal credit" "2SLS: Interpersonal trust") ///
+>     stats(Controls ProvinceFE YearFE PseudoR2 Observations, ///
+>         fmt(0 0 0 4 0) labels("Controls" "Province FE" "Year FE" ///
+>         "Pseudo R2" "Observations")) ///
+>     title("Table 7. Gift exchange, informal credit, and interpersonal trust") ///
+>     addnotes("{\i Note:} This table presents the results of channel tests. Columns (1)-(2) report the effect of gift exchange on informal credit and interpersonal trust. Columns (3)-(4) report the 2SLS estimation results using parental CPC membership as
+>  an instrument variable for gift exchange. Baseline controls are included but not displayed. ***, **, and * indicate significance at 1%, 5%, and 10%, respectively.")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_07_Mechanisms.rtf)
+
+. estimates clear
+
+. 
+. * -----------------------------------------------------------------------------
+. * Table 8. Heterogeneity: Stock then Risky Financial Assets
+. * -----------------------------------------------------------------------------
+. keep if sample_submission_positive==1
+(45,354 observations deleted)
+
+. bysort year: egen double income_median=median(household_income_pc_10k_w)
+
+. bysort year: egen double assets_median=median(household_assets_10k_w)
+
+. gen byte high_income=household_income_pc_10k_w>=income_median
+
+. gen byte high_assets=household_assets_10k_w>=assets_median
+
+. capture drop large_family
+
+. gen byte large_family=family_size_w>3 if !missing(family_size_w)
+
+. 
+. * Group-specific slopes are obtained from explicit interaction Probit models.
+. capture program drop store_slope
+
+. program define store_slope
+  1.     syntax, MODEL(name) EXPRESSION(string) NAME(name) CONDITION(string) TESTP(real)
+  2.     quietly estimates restore `model'
+  3.     local n=e(N)
+  4.     local r2=e(r2_p)
+  5.     quietly count if e(sample) & (`condition')
+  6.     local gn=r(N)
+  7.     quietly nlcom (Gift: `expression'), post
+  8.     local p_text ""
+  9.     if !missing(`testp') {
+ 10.         if `testp' < 0.0001 local p_text "<0.0001"
+ 11.         else local p_text = strtrim(string(`testp', "%9.4f"))
+ 12.     }
+ 13.     estadd scalar Observations=`n'
+ 14.     estadd scalar GroupN=`gn'
+ 15.     estadd scalar PseudoR2=`r2'
+ 16.     estadd local InteractionPText "`p_text'"
+ 17.     estadd local Controls "Yes"
+ 18.     estadd local ProvinceFE "Yes"
+ 19.     estadd local YearFE "Yes"
+ 20.     estimates store `name'
+ 21. end
+
+. 
+. * Exclude the grouping variable from each interaction model's control list.
+. local C_RURAL "age age_squared female family_size_w party_member rural_hukou household_assets_10k_w household_income_pc_10k_w"
+
+. local C_FAMILY "age age_squared female party_member rural_hukou rural_residence household_assets_10k_w household_income_pc_10k_w"
+
+. 
+. * Stock participation: five explicit interaction specifications.
+. quietly probit stock_participation c.gift_exchange_ln##i.rural_residence `C_RURAL' $FE, $VCE
+
+. quietly test 1.rural_residence#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.rural_residence#c.gift_exchange_ln]") name(hs1) condition("rural_residence==1") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  16038
+
+added scalar:
+           e(PseudoR2) =  .25441134
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hs2) condition("rural_residence==0") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  44043
+
+added scalar:
+           e(PseudoR2) =  .25441134
+
+added macro:
+   e(InteractionPText) : "0.1647"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit stock_participation c.gift_exchange_ln##i.large_family `C_FAMILY' $FE, $VCE
+
+. quietly test 1.large_family#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hs3) condition("large_family==0") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  37972
+
+added scalar:
+           e(PseudoR2) =  .25575138
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.large_family#c.gift_exchange_ln]") name(hs4) condition("large_family==1") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  22109
+
+added scalar:
+           e(PseudoR2) =  .25575138
+
+added macro:
+   e(InteractionPText) : "0.1539"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit stock_participation c.gift_exchange_ln##i.high_assets $C $FE, $VCE
+
+. quietly test 1.high_assets#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hs5) condition("high_assets==0") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30039
+
+added scalar:
+           e(PseudoR2) =  .26511602
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.high_assets#c.gift_exchange_ln]") name(hs6) condition("high_assets==1") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30042
+
+added scalar:
+           e(PseudoR2) =  .26511602
+
+added macro:
+   e(InteractionPText) : "<0.0001"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit stock_participation c.gift_exchange_ln##i.high_income $C $FE, $VCE
+
+. quietly test 1.high_income#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hs7) condition("high_income==0") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30038
+
+added scalar:
+           e(PseudoR2) =  .25980404
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.high_income#c.gift_exchange_ln]") name(hs8) condition("high_income==1") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30043
+
+added scalar:
+           e(PseudoR2) =  .25980404
+
+added macro:
+   e(InteractionPText) : "<0.0001"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit stock_participation c.gift_exchange_ln##i.head_age_group $C $FE, $VCE
+
+. quietly test 2.head_age_group#c.gift_exchange_ln 3.head_age_group#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hs9) condition("head_age_group==1") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  18679
+
+added scalar:
+           e(PseudoR2) =  .25531046
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[2.head_age_group#c.gift_exchange_ln]") name(hs10) condition("head_age_group==2") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  22340
+
+added scalar:
+           e(PseudoR2) =  .25531046
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[3.head_age_group#c.gift_exchange_ln]") name(hs11) condition("head_age_group==3") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  19062
+
+added scalar:
+           e(PseudoR2) =  .25531046
+
+added macro:
+   e(InteractionPText) : "0.4478"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. * Risky financial assets: the same five specifications, written explicitly.
+. quietly probit risky_asset_participation c.gift_exchange_ln##i.rural_residence `C_RURAL' $FE, $VCE
+
+. quietly test 1.rural_residence#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.rural_residence#c.gift_exchange_ln]") name(hr1) condition("rural_residence==1") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  16038
+
+added scalar:
+           e(PseudoR2) =  .25207883
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hr2) condition("rural_residence==0") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  44043
+
+added scalar:
+           e(PseudoR2) =  .25207883
+
+added macro:
+   e(InteractionPText) : "0.0469"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit risky_asset_participation c.gift_exchange_ln##i.large_family `C_FAMILY' $FE, $VCE
+
+. quietly test 1.large_family#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hr3) condition("large_family==0") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  37972
+
+added scalar:
+           e(PseudoR2) =  .25329295
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.large_family#c.gift_exchange_ln]") name(hr4) condition("large_family==1") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  22109
+
+added scalar:
+           e(PseudoR2) =  .25329295
+
+added macro:
+   e(InteractionPText) : "0.9812"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit risky_asset_participation c.gift_exchange_ln##i.high_assets $C $FE, $VCE
+
+. quietly test 1.high_assets#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hr5) condition("high_assets==0") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30039
+
+added scalar:
+           e(PseudoR2) =  .26373319
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.high_assets#c.gift_exchange_ln]") name(hr6) condition("high_assets==1") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30042
+
+added scalar:
+           e(PseudoR2) =  .26373319
+
+added macro:
+   e(InteractionPText) : "<0.0001"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit risky_asset_participation c.gift_exchange_ln##i.high_income $C $FE, $VCE
+
+. quietly test 1.high_income#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hr7) condition("high_income==0") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30038
+
+added scalar:
+           e(PseudoR2) =  .25809212
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[1.high_income#c.gift_exchange_ln]") name(hr8) condition("high_income==1") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  30043
+
+added scalar:
+           e(PseudoR2) =  .25809212
+
+added macro:
+   e(InteractionPText) : "<0.0001"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. 
+. quietly probit risky_asset_participation c.gift_exchange_ln##i.head_age_group $C $FE, $VCE
+
+. quietly test 2.head_age_group#c.gift_exchange_ln 3.head_age_group#c.gift_exchange_ln
+
+. local p=r(p)
+
+. estimates store work
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]") name(hr9) condition("head_age_group==1") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  18679
+
+added scalar:
+           e(PseudoR2) =  .25270695
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[2.head_age_group#c.gift_exchange_ln]") name(hr10) condition("head_age_group==2") testp(.)
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  22340
+
+added scalar:
+           e(PseudoR2) =  .25270695
+
+added macro:
+   e(InteractionPText) : ""
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. store_slope, model(work) expression("_b[gift_exchange_ln]+_b[3.head_age_group#c.gift_exchange_ln]") name(hr11) condition("head_age_group==3") testp(`p')
+
+added scalar:
+       e(Observations) =  60081
+
+added scalar:
+             e(GroupN) =  19062
+
+added scalar:
+           e(PseudoR2) =  .25270695
+
+added macro:
+   e(InteractionPText) : "0.7972"
+
+added macro:
+           e(Controls) : "Yes"
+
+added macro:
+         e(ProvinceFE) : "Yes"
+
+added macro:
+             e(YearFE) : "Yes"
+
+. estimates drop work
+
+. local models_stock "hs1 hs2 hs3 hs4 hs5 hs6 hs7 hs8 hs9 hs10 hs11"
+
+. local models_risky "hr1 hr2 hr3 hr4 hr5 hr6 hr7 hr8 hr9 hr10 hr11"
+
+. local labels `""Rural" "Urban" "Small family" "Large family" "Low assets" "High assets" "Low income" "High income" "Young" "Middle-aged" "Older""'
+
+. 
+. esttab `models_stock' using "$IRFA_REPRODUCED/Table_08_Heterogeneity.rtf", ///
+>     replace rtf label nogaps compress cells(b(star fmt(4)) se(par fmt(4))) ///
+>     collabels(none) eqlabels(none) star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep(Gift) coeflabels(Gift "Gift") ///
+>     mtitles(`labels') stats(Controls ProvinceFE YearFE PseudoR2 InteractionPText GroupN, ///
+>         fmt(0 0 0 4 4 0) labels("Controls" "Province FE" "Year FE" ///
+>         "Pseudo R2" "Group-difference p-value" "Observations")) ///
+>     title("Table 8. Heterogeneity tests: Panel A. Stock")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_08_Heterogeneity.rtf)
+
+. 
+. esttab `models_risky' using "$IRFA_REPRODUCED/Table_08_Heterogeneity.rtf", ///
+>     append rtf label nogaps compress cells(b(star fmt(4)) se(par fmt(4))) ///
+>     collabels(none) eqlabels(none) star(* 0.10 ** 0.05 *** 0.01) ///
+>     keep(Gift) coeflabels(Gift "Gift") ///
+>     mtitles(`labels') stats(Controls ProvinceFE YearFE PseudoR2 InteractionPText GroupN, ///
+>         fmt(0 0 0 4 4 0) labels("Controls" "Province FE" "Year FE" ///
+>         "Pseudo R2" "Group-difference p-value" "Observations")) ///
+>     title("Panel B. Risky Financial Assets") ///
+>     addnotes("{\i Note:} This table reports the results on how the effect of gift exchange varies with households{\u8217?} place of residence, family size, wealth, and head age. Standard errors are in parentheses. ***, **, and * indicate significance at
+>  1%, 5%, and 10%, respectively. See Table 1 for variable definitions.")
+(output written to C:/Users/86158/Desktop/新建文件夹/提交版/replication/tables/Table_08_Heterogeneity.rtf)
+
+. estimates clear
+
+. 
+. display "TABLES_07_08=PASS"
+TABLES_07_08=PASS
+
+. 
+end of do-file
+
+. 
+. do "$IRFA_PACKAGE_ROOT/code/analysis/90_format_tables.do"
+
+. * Word-visible three-line formatting for Tables 1-8.
+. version 18.0
+
+. set more off
+
+. quietly do "config/01_paths.do"
+
+. 
+. mata:
+------------------------------------------------- mata (type end to exit) -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+: real rowvector irfa_cellx_values(string scalar s)
+> {
+>     real rowvector values
+>     real scalar p, first, last, code
+>     string scalar rest
+>     values = J(1, 0, .)
+>     rest = s
+>     while ((p = strpos(rest, "\cellx")) > 0) {
+>         first = p + 6
+>         last = first
+>         while (last <= strlen(rest)) {
+>             code = ascii(substr(rest, last, 1))
+>             if (code < 48 | code > 57) break
+>             last++
+>         }
+>         if (last > first) {
+>             values = (values, strtoreal(substr(rest, first, last - first)))
+>         }
+>         rest = substr(rest, last, .)
+>     }
+>     return(values)
+> }
+
+: 
+: string scalar irfa_normalize_cellx(
+>     string scalar s, real scalar target_first, real scalar target_last)
+> {
+>     real rowvector values
+>     real scalar n, j, p, first, last, code, new_value
+>     string scalar rest, output
+>     values = irfa_cellx_values(s)
+>     n = cols(values)
+>     if (n < 2) return(s)
+>     rest = s
+>     output = ""
+>     for (j = 1; j <= n; j++) {
+>         p = strpos(rest, "\cellx")
+>         first = p + 6
+>         last = first
+>         while (last <= strlen(rest)) {
+>             code = ascii(substr(rest, last, 1))
+>             if (code < 48 | code > 57) break
+>             last++
+>         }
+>         if (j == 1) new_value = target_first
+>         else if (j == n) new_value = target_last
+>         else new_value = round(target_first + ///
+>             (target_last - target_first) * (j - 1) / (n - 1))
+>         output = output + substr(rest, 1, first - 1) + ///
+>             strtrim(strofreal(new_value, "%20.0f"))
+>         rest = substr(rest, last, .)
+>     }
+>     return(output + rest)
+> }
+
+: 
+: void irfa_rtf_visible_rules(string scalar filename)
+> {
+>     string colvector lines
+>     string scalar line, top_rule, bottom_rule
+>     real rowvector values
+>     real scalar input, output, i, target_first, target_last
+>     real scalar has_top, has_bottom, top_count
+>     if (strpos(strlower(filename), "table_01_") | ///
+>             strpos(strlower(filename), "table_03_")) return
+>     lines = J(0, 1, "")
+>     input = fopen(filename, "r")
+>     while ((line = fget(input)) != J(0, 0, "")) lines = lines \ line
+>     fclose(input)
+>     target_first = 0
+>     target_last = 0
+>     for (i = 1; i <= rows(lines); i++) {
+>         values = irfa_cellx_values(lines[i])
+>         if (cols(values) >= 2) {
+>             if (values[1] > target_first) target_first = values[1]
+>             if (values[cols(values)] > target_last) ///
+>                 target_last = values[cols(values)]
+>         }
+>     }
+>     top_rule = "\clbrdrt\brdrw10\brdrs"
+>     bottom_rule = "\clbrdrb\brdrw10\brdrs"
+>     top_count = 0
+>     for (i = 1; i <= rows(lines); i++) {
+>         line = lines[i]
+>         if (strpos(line, "{\pard \par}")) top_count = 0
+>         has_top = strpos(line, top_rule) > 0
+>         has_bottom = strpos(line, bottom_rule) > 0
+>         line = subinstr(line, top_rule, "", .)
+>         line = subinstr(line, bottom_rule, "", .)
+>         if (has_top) {
+>             top_count++
+>             if (top_count <= 3) ///
+>                 line = subinstr(line, "\cellx", top_rule + "\cellx", .)
+>         }
+>         if (has_bottom & strpos(line, "{Observations}")) ///
+>             line = subinstr(line, "\cellx", bottom_rule + "\cellx", .)
+>         if (strpos(line, top_rule) | strpos(line, bottom_rule)) ///
+>             line = subinstr(line, "{}\cell", "{\~}\cell", .)
+>         lines[i] = irfa_normalize_cellx(line, target_first, target_last)
+>     }
+>     unlink(filename)
+>     output = fopen(filename, "w")
+>     for (i = 1; i <= rows(lines); i++) fput(output, lines[i])
+>     fclose(output)
+> }
+
+: end
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+. 
+. local tables Table_02_Summary_Statistics.rtf Table_04_Baseline.rtf ///
+>     Table_05_Robustness.rtf Table_06_Instrumental_Variables.rtf ///
+>     Table_07_Mechanisms.rtf Table_08_Heterogeneity.rtf
+
+. foreach f of local tables {
+  2.     mata: irfa_rtf_visible_rules("$IRFA_REPRODUCED/`f'")
+  3. }
+
+. 
+. display "TABLE_FORMATTING=PASS"
+TABLE_FORMATTING=PASS
+
+. 
+end of do-file
+
+. 
+. * Final table inventory and reproducibility assertions.
+. local required Table_01_Variable_Definitions.rtf ///
+>     Table_02_Summary_Statistics.rtf Table_03_Gift_Group_Comparison.rtf ///
+>     Table_04_Baseline.rtf Table_05_Robustness.rtf ///
+>     Table_06_Instrumental_Variables.rtf Table_07_Mechanisms.rtf ///
+>     Table_08_Heterogeneity.rtf
+
+. foreach f of local required {
+  2.     confirm file "$IRFA_REPRODUCED/`f'"
+  3. }
+
+. use "$IRFA_FINAL_DTA", clear
+(IRFA CHFS 2013-2017 head-valid analysis data)
+
+. isid hhid year
+
+. assert _N == $IRFA_EXPECTED_N
+
+. quietly count if sample_submission_positive == 1
+
+. assert r(N) == $IRFA_POSITIVE_N
+
+. quietly count if sample_submission_positive == 1 & !missing(parent_party)
+
+. assert r(N) == 26249
+
+. 
+. display "TABLE_INVENTORY=PASS"
+TABLE_INVENTORY=PASS
+
+. local pass_marker = "IRFA_REPLICATION_RUN=" + "PASS"
+
+. display "`pass_marker'"
+IRFA_REPLICATION_RUN=PASS
+
+. local completion_marker = "__CODEX_STATA_" + "COMPLETE__"
+
+. display "`completion_marker'"
+__CODEX_STATA_COMPLETE__
+
+. log close master
+      name:  master
+       log:  C:/Users/86158/Desktop/新建文件夹/提交版/replication/logs/00_run_all.log
+  log type:  text
+ closed on:  15 Aug 2026, 22:40:40
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
